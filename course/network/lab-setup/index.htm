@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WantedBull - D!</title>
+    <style>
+        /* Set the body and html to take up the full height */
+        html, body {
+            height: 100%;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Wrapper div to control the scaling of the embed */
+        .pdf-container {
+            flex-grow: 1; /* Ensures the container takes the available height */
+            width: 100%;
+        }
+
+        /* Make the embed responsive */
+        embed {
+            width: 100%;
+            height: 100%;
+            border: none; /* Optional: Remove border around the PDF */
+        }
+    </style>
+</head>
+<body>
+    <!-- PDF container that will scale with the page size -->
+    <div class="pdf-container">
+        <!-- Using embed to display PDF -->
+        <embed src="Network Lab_Demo - Student guide.pdf" type="application/pdf">
+    </div>
+
+</body>
+</html>
