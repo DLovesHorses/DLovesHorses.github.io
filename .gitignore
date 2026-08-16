@@ -1,0 +1,7 @@
+# Local-only working folders. Not part of the site, never committed.
+
+# Untouched original media, kept as a backup after re-encoding.
+_originals/
+
+# Staging folder used during the media migration.
+_r2-upload/

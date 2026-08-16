@@ -1,4 +1,21 @@
 # Auto detect text files and perform LF normalization
 * text=auto
-*.mp4 filter=lfs diff=lfs merge=lfs -text
-*.mp3 filter=lfs diff=lfs merge=lfs -text
+
+# Audio and video are committed as ordinary files and served directly by
+# GitHub Pages. Do not put them back under Git LFS: GitHub Pages does not serve
+# LFS content at all. It returns the ~130 byte pointer file with a 200 status,
+# the browser cannot decode that as media, and the presentation in /digital
+# hangs forever waiting for a video that will never become ready.
+#
+# Keep every file under GitHub's 100 MiB hard limit. Re-encode rather than
+# reaching for LFS.
+#
+# The -text markers also stop the "* text=auto" rule above from ever applying
+# line-ending normalisation to a binary file.
+*.mp3 -text
+*.mp4 -text
+*.m4a -text
+*.mov -text
+*.ogg -text
+*.wav -text
+*.webm -text
