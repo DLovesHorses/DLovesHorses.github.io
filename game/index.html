@@ -63,14 +63,14 @@ canvas{display:block;width:100%;height:100%;image-rendering:auto}
 #bub.on{opacity:1}
 
 /* touch controls */
-#pad{width:100%;max-width:660px;display:none;justify-content:space-between;align-items:center;
+#pad{width:100%;max-width:760px;display:none;justify-content:space-between;align-items:center;
      padding:min(3vh,18px) 5% min(4vh,26px);gap:.6rem;flex:0 0 auto}
 #pad.on{display:flex}
-.pbtn{width:min(21vw,86px);height:min(21vw,86px);border-radius:50%;
+.pbtn{width:min(18vw,78px);height:min(18vw,78px);border-radius:50%;
       background:rgba(233,221,194,.14);border:3px solid rgba(233,221,194,.55);color:#e9ddc2;
       display:grid;place-items:center;font-size:clamp(20px,6vw,32px);touch-action:none}
 .pbtn:active,.pbtn.hit{background:rgba(196,85,42,.75);color:#fff}
-.padL{display:flex;gap:.7rem}
+.padL,.padR{display:flex;gap:.7rem}
 </style>
 </head>
 <body>
@@ -80,6 +80,7 @@ canvas{display:block;width:100%;height:100%;image-rendering:auto}
     <div id="hud">
       <span class="box">GRIT <span class="rust" id="hlife">3</span></span>
       <span class="box">CODE <span class="rust" id="hcode">0</span>/<span id="hcodemax">14</span></span>
+      <span class="box" id="mis">—</span>
       <span class="box" id="lvl">The Salt Desert</span>
     </div>
     <div id="bub"></div>
@@ -88,7 +89,7 @@ canvas{display:block;width:100%;height:100%;image-rendering:auto}
   </div>
   <div id="pad">
     <div class="padL"><div class="pbtn" id="pleft">◀</div><div class="pbtn" id="pright">▶</div></div>
-    <div class="pbtn" id="pjump">▲</div>
+    <div class="padR"><div class="pbtn" id="plasso">➰</div><div class="pbtn" id="pjump">▲</div></div>
   </div>
 </div>
 
@@ -119,24 +120,31 @@ const isTouch = matchMedia("(hover:none)").matches || "ontouchstart" in window;
 if(isTouch) pad.classList.add("on");
 
 /* ==================================================================== input */
-const K={left:false,right:false,jump:false,jumpPressed:false};
+const K={left:false,right:false,jump:false,jumpPressed:false,lasso:false,lassoPressed:false};
 const keymap={ArrowLeft:"left",KeyA:"left",ArrowRight:"right",KeyD:"right",
-              ArrowUp:"jump",KeyW:"jump",Space:"jump"};
+              ArrowUp:"jump",KeyW:"jump",Space:"lasso",KeyJ:"lasso"};
 addEventListener("keydown",e=>{
   const k=keymap[e.code];
-  if(k){ if(k==="jump"&&!K.jump)K.jumpPressed=true; K[k]=true; e.preventDefault(); }
+  if(k){
+    if(k==="jump"&&!K.jump)K.jumpPressed=true;
+    if(k==="lasso"&&!K.lasso)K.lassoPressed=true;
+    K[k]=true; e.preventDefault();
+  }
   if(e.code==="Enter"||e.code==="Escape"){ const b=card.querySelector(".btn"); if(b&&ov.classList.contains("on"))b.click(); }
 });
 addEventListener("keyup",e=>{const k=keymap[e.code]; if(k){K[k]=false; e.preventDefault();}});
 function bindPad(id,key){
   const b=el(id);
-  const on=e=>{e.preventDefault(); if(key==="jump"&&!K.jump)K.jumpPressed=true; K[key]=true; b.classList.add("hit");};
+  const on=e=>{e.preventDefault();
+    if(key==="jump"&&!K.jump)K.jumpPressed=true;
+    if(key==="lasso"&&!K.lasso)K.lassoPressed=true;
+    K[key]=true; b.classList.add("hit");};
   const off=e=>{e.preventDefault(); K[key]=false; b.classList.remove("hit");};
   b.addEventListener("touchstart",on,{passive:false}); b.addEventListener("touchend",off,{passive:false});
   b.addEventListener("touchcancel",off,{passive:false});
   b.addEventListener("mousedown",on); addEventListener("mouseup",off);
 }
-bindPad("pleft","left"); bindPad("pright","right"); bindPad("pjump","jump");
+bindPad("pleft","left"); bindPad("pright","right"); bindPad("pjump","jump"); bindPad("plasso","lasso");
 
 /* ============================================================ code of west */
 const CODES=[
@@ -163,93 +171,92 @@ el("hcodemax").textContent=CODES.length;
 function ground(x,w,y){return [x,y,w,40];}
 const LEVELS=[
 { id:"desert", name:"The Salt Desert", sub:"Age twelve. One hat, one dog, no plan.",
-  intro:"You are twelve years old. Behind you is home. Ahead of you is everything else.\nYour best friend Kalu had three legs and never once mentioned it.",
-  sky:"#e9ddc2", far:"dune", len:2400, spawn:[40,150],
-  plats:[ground(0,780,210),ground(840,430,210),ground(1330,540,210),ground(1930,480,210),
-          [560,160,70,12],[700,120,60,12],[1260,150,60,12],[1420,120,70,12],
-          [1700,160,70,12],[1810,120,60,12],[2130,150,80,12]],
-  foes:[[940,210,"anx",70],[1500,210,"anx",100],[2050,210,"dbt",80]],
-  gems:[[600,120,0],[1440,80,1],[2160,110,3]],
-  signs:[[120,178,"Arrows or A/D to walk. Up, W or Space to jump. Stomp the red things."],
-         [640,178,"Kalu is buried back there under a stone you could lift."],
-         [1360,178,"That red one has been following you since the salt flat."]],
-  deco:[[300,"cactus"],[1000,"cactus"],[1600,"skull"],[2050,"cactus"]],
-  goal:2340 },
+  intro:"You are twelve. Behind you is home; ahead is everything else.\nSelf-Doubt you can jump on. Anxiety hovers and Insecurity is all edges — for those two, use the rope.\nRope a horse to ride it. Rope a cow to get your grit back. Rope a bull and stand well clear.",
+  sky:"#e9ddc2", far:"dune", len:2700, spawn:[40,150],
+  plats:[ground(0,700,210),ground(760,420,210),ground(1240,480,210),ground(1780,460,210),ground(2300,400,210),
+         [520,158,70,12],[640,118,60,12],[980,150,70,12],[1420,155,70,12],[1540,115,60,12],[1900,150,70,12],[2380,150,70,12],[2500,110,70,12]],
+  movs:[],
+  pals:[[420,"horse"],[1830,"cow"]],
+  mission:{type:"clear",hint:"Deal with every demon on this stretch."},
+  foes:[[920,210,"dbt",80],[1460,210,"anx",120],[2000,210,"ins",110],[2490,210,"dbt",90]],
+  gems:[[660,100,0],[1000,132,1],[2530,92,3]],
+  signs:[[110,178,"Arrows move. UP jumps. SPACE throws the lasso."],[800,178,"Self-Doubt you can stomp. The other two you cannot."],[1300,178,"Anxiety hovers out of reach. Rope it."],[1830,178,"Kalu is buried back there, under a stone you could lift."]],
+  deco:[[300,"cactus"],[1100,"cactus"],[1700,"skull"],[2150,"cactus"]],
+  goal:2640 },
 
 { id:"motel", name:"The Long Night Inn", sub:"Thunder Bay, 2021. Twenty-three rooms a day.",
-  intro:"The job is cleaning rooms. It is not technical. It is intense, which is a different and less respected thing.\nYou look at twenty-three the way you look at a badly routed board.",
-  sky:"#ded0b2", far:"town", len:2600, spawn:[40,150],
-  plats:[ground(0,540,210),ground(600,340,210),ground(1000,380,210),ground(1440,440,210),ground(1940,660,210),
-         [420,158,70,12],[560,118,60,12],[900,150,70,12],[1180,150,60,12],[1300,110,60,12],
-         [1420,150,70,12],[1740,160,70,12],[1860,120,60,12],[2200,150,70,12],[2330,110,70,12]],
-  foes:[[780,210,"dbt",100],[1180,210,"dbt",130],[1650,210,"anx",150],[2150,210,"dbt",150]],
-  gems:[[580,80,2],[1320,72,12],[2360,72,5]],
-  signs:[[110,178,"Eighty-five rooms a day, by the end."],
-         [1060,178,"They offered a promotion. You turned it down. Gladly. Nobody understood."],
-         [2010,178,"You finished the contract because you gave your word. That is the whole trick."]],
-  deco:[[250,"bed"],[760,"bed"],[1550,"bed"],[2250,"bed"]],
-  goal:2540 },
+  intro:"The job is cleaning rooms. Not technical. Intense, which is a different and less respected thing.\nThe lift moves on its own. So does everything else here.",
+  sky:"#ded0b2", far:"town", len:2500, spawn:[40,150],
+  plats:[ground(0,560,210),ground(620,380,210),ground(1060,420,210),ground(1540,380,210),ground(1980,520,210),
+         [430,158,70,12],[560,118,60,12],[900,150,70,12],[1180,150,60,12],[1420,110,70,12],[1700,150,70,12],[1830,112,60,12],[2100,150,70,12],[2260,112,70,12]],
+  movs:[[1300,150,64,12,0,1,40,1.1]],
+  pals:[[700,"cow"],[1750,"horse"]],
+  mission:{type:"codes",hint:"Find all three Code of the West cards."},
+  foes:[[800,210,"dbt",90],[920,210,"ins",40],[1390,210,"dbt",45],[1740,210,"ins",110],[2200,210,"anx",140]],
+  gems:[[580,100,2],[1440,92,12],[2290,94,5]],
+  signs:[[110,178,"Twenty-three rooms a day. You looked at that the way you look at a bad board."],[1080,178,"They offered a promotion. You turned it down. Gladly. Nobody understood."],[2000,178,"You finished because you gave your word. That is the whole trick."]],
+  deco:[[250,"bed"],[800,"bed"],[1650,"bed"],[2200,"bed"]],
+  goal:2440 },
 
 { id:"lab", name:"The Lab", sub:"uOttawa. Twenty-three amps, looking for somewhere to be.",
-  intro:"Hot flux and undergraduate panic. Two students are staring at a board that has begun, faintly, to smell like a decision.\n\"It was working yesterday.\" It was not working yesterday.",
-  sky:"#e4d8bd", far:"lab", len:2800, spawn:[40,150],
-  plats:[ground(0,500,210),ground(560,320,210),ground(940,300,210),ground(1300,320,210),ground(1680,360,210),ground(2100,700,210),
-         ground(1690,340,210),ground(2120,680,210),
-         [400,155,60,12],[520,115,60,12],[840,150,70,12],[1200,150,60,12],
-         [1560,155,70,12],[1660,115,60,12],[2020,150,70,12],[2350,150,60,12],[2470,110,70,12]],
-  foes:[[720,210,"ins",120],[1090,210,"ins",110],[1460,210,"dbt",120],[1860,210,"ins",140],[2350,210,"anx",200]],
-  gems:[[540,75,4],[1230,110,5],[2500,70,9]],
-  signs:[[110,178,"You found it in nine seconds. You said \"huh, tricky one\" and handed over the multimeter."],
-         [1310,178,"Never do the finding for someone who has not tried first."],
-         [2140,178,"You built the labs they are standing in. That does not make the demons wrong. It outvotes them."]],
-  deco:[[300,"scope"],[1050,"scope"],[1800,"scope"],[2400,"scope"]],
-  goal:2740 },
+  intro:"Hot flux and undergraduate panic. \u201cIt was working yesterday.\u201d It was not working yesterday.\nInsecurity is thick in here. Keep the rope moving.",
+  sky:"#e4d8bd", far:"lab", len:2700, spawn:[40,150],
+  plats:[ground(0,520,210),ground(580,340,210),ground(980,360,210),ground(1400,340,210),ground(1800,360,210),ground(2220,480,210),
+         [420,155,60,12],[880,150,70,12],[1250,150,60,12],[1330,110,60,12],[1900,150,70,12],[2020,112,60,12],[2320,150,70,12],[2450,110,70,12]],
+  movs:[[700,140,64,12,0,1,42,1.2],[1560,150,64,12,1,0,70,0.9]],
+  pals:[[640,"bull"],[1450,"cow"]],
+  mission:{type:"clear",hint:"Clear the lab. Every last one."},
+  foes:[[760,210,"ins",80],[1150,210,"dbt",90],[1560,210,"ins",80],[1960,210,"dbt",90],[2460,210,"anx",140]],
+  gems:[[450,137,4],[1360,92,5],[2480,92,9]],
+  signs:[[110,178,"Nine seconds to find it. You said \\u201chuh, tricky one\\u201d and handed over the multimeter."],[1420,178,"Never do the finding for someone who has not tried first."],[2240,178,"You built the labs they are standing in."]],
+  deco:[[300,"scope"],[1150,"scope"],[1850,"scope"],[2500,"scope"]],
+  goal:2640 },
 
 { id:"garden", name:"Hope & Memory Garden", sub:"Every plant here is somebody.",
-  intro:"A garden planted for people who died of cancer. Nobody says this out loud; everybody weeds like they know.\nYou are on your knees in it, which is the correct altitude for this work.",
-  sky:"#e7dfc4", far:"garden", len:2600, spawn:[40,150],
-  plats:[ground(0,620,210),ground(680,420,210),ground(1160,340,210),ground(1560,380,210),ground(2000,600,210),
-         [470,150,70,12],[600,110,70,12],[1080,150,70,12],[1520,150,60,12],[1640,110,60,12],
-         [1920,155,70,12],[2260,150,70,12],[2380,108,70,12]],
-  foes:[[880,210,"anx",160],[1330,210,"anx",130],[1750,210,"dbt",150],[2250,210,"anx",200]],
-  gems:[[630,68,6],[1110,110,7],[2410,68,3]],
-  signs:[[110,178,"Kill the unnecessary. Nurture the weak. Love the small."],
-         [1210,178,"You cannot stir muddy water clean. You have tried. It has never once worked."],
-         [2040,178,"You gardened the shelter's yard so the dogs had somewhere decent to run."]],
-  deco:[[220,"tree"],[900,"tree"],[1350,"tree"],[2200,"tree"]],
-  goal:2540 },
+  intro:"A garden for people who died of cancer. Nobody says it out loud; everybody weeds like they know.\nAnxiety is everywhere in this one. Rope is the only answer.",
+  sky:"#e7dfc4", far:"garden", len:2560, spawn:[40,150],
+  plats:[ground(0,600,210),ground(660,420,210),ground(1140,400,210),ground(1600,380,210),ground(2040,520,210),
+         [470,150,70,12],[600,110,70,12],[1060,150,70,12],[1500,150,60,12],[1620,110,60,12],[1900,155,70,12],[2280,150,70,12],[2400,108,70,12]],
+  movs:[[1000,150,64,12,1,0,80,1.0]],
+  pals:[[560,"horse"],[1250,"cow"],[2150,"bull"]],
+  mission:{type:"both",hint:"Every demon down AND all three cards found."},
+  foes:[[820,210,"anx",80],[950,210,"anx",70],[1300,210,"ins",90],[1420,210,"dbt",80],[1800,210,"anx",120],[2300,210,"anx",170]],
+  gems:[[630,92,6],[1090,132,7],[2430,90,3]],
+  signs:[[110,178,"Kill the unnecessary. Nurture the weak. Love the small."],[1150,178,"You cannot stir muddy water clean. You have tried. It never works."],[2060,178,"You gardened the shelter's yard so the dogs had somewhere to run."]],
+  deco:[[220,"tree"],[900,"tree"],[1400,"tree"],[2150,"tree"]],
+  goal:2500 },
 
 { id:"ridge", name:"ambiBull Ridge", sub:"The last ride. All three of them.",
-  intro:"They have been riding with you since the salt desert and have never missed a day of work.\nYou cannot kill them. That was never on the table. You can get far enough ahead that they ride behind.",
-  sky:"#dfd0ae", far:"ridge", len:2200, spawn:[40,150], boss:true,
-  plats:[ground(0,540,210),ground(600,360,210),ground(1020,340,210),ground(1420,780,210),
-         [430,150,70,12],[560,112,60,12],[980,150,60,12],[1340,150,70,12],
-         [1560,140,80,12],[1760,110,80,12],[1960,140,80,12]],
-  foes:[[780,210,"ins",140],[1190,210,"dbt",140]],
-  gems:[[590,72,10],[1010,110,11],[1800,70,13]],
-  signs:[[110,178,"You built a robot with two legs and no arms to thank your sister."],
-         [1090,178,"Founder. Say it out loud and hear how it sounds."],
-         [1450,178,"Eight seconds. That is all anybody gets."]],
-  deco:[[280,"cactus"],[900,"skull"],[1650,"cactus"]],
-  goal:2140 },
+  intro:"They have ridden with you since the salt desert and never missed a day.\nAnxiety and Insecurity take two ropings each. Self-Doubt you can still stomp.",
+  sky:"#dfd0ae", far:"ridge", len:2240, spawn:[40,150], boss:true,
+  plats:[ground(0,540,210),ground(600,360,210),ground(1020,340,210),ground(1420,820,210),
+         [430,150,70,12],[560,112,60,12],[980,150,60,12],[1340,150,70,12],[1560,140,80,12],[1780,110,80,12],[1980,140,80,12]],
+  movs:[[800,140,64,12,0,1,44,1.15]],
+  pals:[[480,"horse"],[1500,"bull"]],
+  mission:{type:"boss",hint:"Three rounds, one demon at a time. Then the flag."},
+  foes:[[800,210,"ins",110],[1210,210,"anx",100]],
+  gems:[[590,94,10],[1010,132,11],[1820,92,13]],
+  signs:[[110,178,"You built a robot with two legs and no arms to thank your sister."],[1040,178,"Founder. Say it out loud and hear how it sounds."],[1450,178,"Eight seconds. That is all anybody gets."]],
+  deco:[[280,"cactus"],[900,"skull"],[1700,"cactus"]],
+  goal:2180 }
 ];
 
 /* ==================================================================== state */
 const G={
   li:0, lvl:null, t:0, lives:3, codes:[], dead:0, won:false, mode:"menu",
-  cam:0, shake:0, boss:null, goalHit:false,
+  cam:0, shake:0, boss:null, goalHit:false, movs:[], plats:[], roped:0, pals:[], charge:null, foeTotal:0,
   // these must exist before the first render(): the title card draws a level
   // backdrop before loadLevel() has built any entities.
   foes:[], gems:[], signs:[]
 };
-const P={x:40,y:150,vx:0,vy:0,w:16,h:30,onGround:false,face:1,phase:0,coyote:0,buffer:0,hurt:0,alive:true,safeX:40,safeY:150};
+const P={x:40,y:150,vx:0,vy:0,w:16,h:30,onGround:false,face:1,phase:0,coyote:0,buffer:0,hurt:0,alive:true,safeX:40,safeY:150,ride:null,la:{st:0,t:0,len:0,tgt:null,cool:0}};
 
 /* ================================================================== drawing */
 function L(a,b,c,d,w){ctx.beginPath();ctx.moveTo(a,b);ctx.lineTo(c,d);ctx.lineWidth=w||2.4;ctx.stroke();}
 function setInk(c,w){ctx.strokeStyle=c||"#241c14";ctx.lineWidth=w||2.4;ctx.lineCap="round";ctx.lineJoin="round";}
 
 /* --- D! : circle head w/ face, rust hand-drawn hat, swinging arms + legs --- */
-function drawD(x,y,phase,onGround,vy,face,ghost){
+function drawD(x,y,phase,onGround,vy,face,ghost,armPose){
   ctx.save(); ctx.translate(x,y); ctx.scale(face,1);
   if(ghost)ctx.globalAlpha=.45;
   setInk("#241c14",2.5);
@@ -268,6 +275,9 @@ function drawD(x,y,phase,onGround,vy,face,ghost){
     la= sp*0.62; lb=-sp*0.62;      // legs alternate
     aa=-sp*0.50; ab= sp*0.50;      // arms counter-swing against the legs
   }
+  // throwing arm overrides the run swing: 1 = winding overhead, 2 = released
+  if(armPose===1) aa=1.38;
+  else if(armPose===2) aa=0.88;
   // legs -------------------------------------------------------------------
   const l1=REST_LEG+la, l2=-REST_LEG+lb;
   L(0,hip, Math.sin(l1)*legLen, hip+Math.cos(l1)*legLen);
@@ -349,6 +359,95 @@ function drawFoe(f){
   ctx.restore();
 }
 
+/* --- the herd: horse, bull, cow ----------------------------------------- */
+function legSwing(a,i){ return a.moving ? Math.sin(G.t*7+a.seed+i*1.6)*0.45 : 0; }
+function quadLegs(a,y,pairs,len){
+  pairs.forEach((lx,i)=>{ const k=legSwing(a,i);
+    L(lx,y, lx+Math.sin(k)*len*0.5, y+Math.cos(k)*len); });
+}
+function drawHorse(a){
+  ctx.save(); ctx.translate(a.x,a.y); ctx.scale(a.dir,1);
+  setInk("#4a3520",2.4);
+  L(-17,-25,13,-26);                              // back
+  quadLegs(a,-25,[-14,-9,7,12],25);
+  L(13,-26,21,-37);                               // neck
+  ctx.beginPath(); ctx.moveTo(21,-37);            // head + muzzle
+  ctx.quadraticCurveTo(29,-40,30,-33);
+  ctx.quadraticCurveTo(26,-31,21,-33); ctx.closePath(); ctx.stroke();
+  setInk("#4a3520",1.6);
+  L(21,-40,19,-45); L(25,-40,26,-45);             // ears
+  ctx.beginPath(); ctx.arc(27,-36,0.9,0,7); ctx.fillStyle="#4a3520"; ctx.fill();
+  setInk("#8a6a2f",2);
+  ctx.beginPath(); ctx.moveTo(12,-28);            // mane
+  ctx.quadraticCurveTo(18,-34,20,-42); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-17,-25);           // tail
+  ctx.quadraticCurveTo(-25,-22,-24,-9); ctx.stroke();
+  ctx.restore();
+}
+function drawBull(a){
+  ctx.save(); ctx.translate(a.x,a.y); ctx.scale(a.dir,1);
+  setInk("#2f2418",2.9);
+  ctx.beginPath();                                 // back, with a shoulder hump
+  ctx.moveTo(-19,-21); ctx.lineTo(-5,-23);
+  ctx.quadraticCurveTo(4,-31,13,-25); ctx.stroke();
+  quadLegs(a,-22,[-15,-10,7,12],22);
+  ctx.beginPath();                                 // blunt lowered head
+  ctx.moveTo(13,-25); ctx.lineTo(23,-19);
+  ctx.lineTo(24,-11); ctx.lineTo(15,-13);
+  ctx.closePath(); ctx.stroke();
+  setInk("#2f2418",2.4);
+  ctx.beginPath(); ctx.moveTo(14,-24);             // near horn
+  ctx.quadraticCurveTo(8,-31,15,-33); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(21,-22);             // far horn
+  ctx.quadraticCurveTo(28,-30,30,-22); ctx.stroke();
+  ctx.fillStyle="#2f2418"; ctx.beginPath(); ctx.arc(19,-17,1.1,0,7); ctx.fill();
+  setInk("#2f2418",2);
+  ctx.beginPath(); ctx.moveTo(-19,-21);            // tail
+  ctx.quadraticCurveTo(-27,-17,-25,-5); ctx.stroke();
+  ctx.restore();
+}
+function drawCow(a){
+  ctx.save(); ctx.translate(a.x,a.y); ctx.scale(a.dir,1);
+  setInk("#3a2b1c",2.4);
+  L(-16,-21,13,-22);
+  quadLegs(a,-21,[-13,-8,7,11],21);
+  L(13,-22,20,-30);
+  ctx.beginPath(); ctx.moveTo(20,-30);
+  ctx.quadraticCurveTo(28,-32,28,-25);
+  ctx.quadraticCurveTo(24,-23,20,-26); ctx.closePath(); ctx.stroke();
+  setInk("#3a2b1c",1.6);
+  L(19,-32,16,-36); L(24,-32,26,-36);             // ears
+  ctx.beginPath(); ctx.moveTo(21,-33); ctx.quadraticCurveTo(19,-38,23,-37); ctx.stroke();
+  ctx.fillStyle="#3a2b1c"; ctx.beginPath(); ctx.arc(25,-28,0.9,0,7); ctx.fill();
+  ctx.globalAlpha=.5;                             // patches
+  ctx.beginPath(); ctx.ellipse(-8,-19,5,3.4,0.3,0,7); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(4,-21,3.6,2.6,-0.2,0,7); ctx.fill();
+  ctx.globalAlpha=1;
+  setInk("#3a2b1c",1.5);
+  ctx.beginPath(); ctx.moveTo(-16,-21); ctx.quadraticCurveTo(-23,-18,-22,-8); ctx.stroke();
+  ctx.restore();
+}
+function drawPal(a){
+  if(a.gone) return;
+  if(a.kind==="horse") drawHorse(a); else if(a.kind==="bull") drawBull(a); else drawCow(a);
+  if(!a.used){                                    // little "rope me" marker
+    const b=Math.sin(G.t*3+a.seed)*1.6;
+    setInk("#8a6a2f",1.8);
+    ctx.save(); ctx.translate(a.x,a.y-46+b); ctx.rotate(G.t*3);
+    ctx.beginPath(); ctx.ellipse(0,0,5.4,2.2,0,0,7); ctx.stroke(); ctx.restore();
+  }
+}
+/* --- D! up on the horse -------------------------------------------------- */
+function drawRider(x,y,face){
+  const a={x:0,y:0,dir:1,moving:Math.abs(P.vx)>20,seed:0};
+  ctx.save(); ctx.translate(x,y); ctx.scale(face,1);
+  drawHorse(a);
+  ctx.save(); ctx.translate(-1,-26); ctx.scale(0.82,0.82);
+  drawD(0,0,P.phase,true,0,1,false,P.la.st===1?1:(P.la.st>1?2:0));
+  ctx.restore();
+  ctx.restore();
+}
+
 /* --- scenery ------------------------------------------------------------- */
 function drawDeco(kind,x,gy){
   ctx.save(); ctx.translate(x,gy); setInk("#6b5843",2.2);
@@ -393,18 +492,47 @@ function loadLevel(i){
                                     dead:0,seed:n*1.7,small:false,vy:0}));
   G.gems=(L0.gems||[]).map(g=>({x:g[0],y:g[1],ci:g[2],got:false}));
   G.signs=(L0.signs||[]).map(s=>({x:s[0],y:s[1],t:s[2]}));
+  // movs: [x,y,w,h,axisX,axisY,range,speed] — oscillate and carry the player
+  G.movs=(L0.movs||[]).map((m,i)=>({hx:m[0],hy:m[1],w:m[2],h:m[3],ax:m[4],ay:m[5],
+                                    range:m[6],sp:m[7]||1,t:i*1.3,x:m[0],y:m[1],px:m[0],py:m[1]}));
+  G.plats=(L0.plats||[]).slice();
+  // pals: [x,kind] — the herd. Rope them to put them to work.
+  G.pals=(L0.pals||[]).map((a,i)=>({x:a[0],y:GROUND_Y,kind:a[1],dir:-1,seed:i*2.1,
+                                    moving:false,used:false,gone:false}));
+  G.charge=null; P.ride=null; G.foeTotal=G.foes.length;
   el("lvl").textContent=L0.name;
-  if(L0.boss) G.boss={stage:0,hp:0,foes:[],done:false,started:false};
-  showCard(L0.name,L0.sub,L0.intro,"Ride",()=>{G.mode="play";});
+  if(L0.boss) G.boss={stage:0,foes:[],cur:null,gap:0,done:false,started:false};
+  showCard(L0.name,L0.sub,L0.intro+(L0.mission?"\n<b>Mission: "+L0.mission.hint+"</b>":""),
+           "Ride",()=>{G.mode="play";});
 }
 function levelGoalX(){return G.lvl.goal;}
+/* A level is not finished by walking right. Each one sets a job. */
+function misState(){
+  const m=G.lvl.mission;
+  if(!m) return {done:true,label:"—"};
+  if(m.type==="clear"){
+    const left=G.foes.filter(f=>!f.dead).length, got=G.foeTotal-left;
+    return {done:left===0,label:`ROPE ${got}/${G.foeTotal}`};
+  }
+  if(m.type==="codes"){
+    const got=G.gems.filter(g=>g.got).length;
+    return {done:got===G.gems.length,label:`CARDS ${got}/${G.gems.length}`};
+  }
+  if(m.type==="both"){
+    const left=G.foes.filter(f=>!f.dead).length, got=G.foeTotal-left;
+    const c=G.gems.filter(g=>g.got).length;
+    return {done:left===0&&c===G.gems.length,label:`${got}/${G.foeTotal} + ${c}/${G.gems.length}`};
+  }
+  if(m.type==="boss") return {done:!!(G.boss&&G.boss.done),label:"THE LAST RIDE"};
+  return {done:true,label:"—"};
+}
 
 /* ================================================================ overlays */
 function showCard(title,sub,body,btn,fn,btn2,fn2){
   G.mode="card";
   card.innerHTML=`<h2>${title}</h2><div class="sub">${sub}</div>`+
     body.split("\n").map(p=>`<p>${p}</p>`).join("")+
-    `<div class="keys">${isTouch?"Use the buttons at the bottom.":"← → or A D to move · ↑ / W / Space to jump · Enter to continue"}</div>`;
+    `<div class="keys">${isTouch?"◀ ▶ move · ▲ jump · ➰ lasso":"← → move · ↑ / W jump · SPACE throw the lasso · Enter to continue"}</div>`;
   const b=document.createElement("button"); b.className="btn go"; b.textContent=btn;
   b.onclick=()=>{ov.classList.remove("on"); fn&&fn();}; card.appendChild(b);
   if(btn2){const b2=document.createElement("button");b2.className="btn";b2.textContent=btn2;
@@ -416,16 +544,31 @@ function toast(head,body){ toastEl.innerHTML=`<b>${head}</b>${body}`; toastEl.cl
 
 /* ================================================================== physics */
 const GRAV=1750, RUN=205, AIR=0.86, JUMP=-530, MAXFALL=520;
+// --- lasso ---------------------------------------------------------------
+const LAS_MAX=96, LAS_SPEED=560, LAS_WIND=0.12, LAS_REEL=0.20, LAS_COOL=0.26;
 // airtime 2*530/1750 = 0.606s -> max jump span ~124 world units.
 // Every gap below is 60, so a mistimed jump still clears.
 function rectHit(a,b){return a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y;}
 
 function step(dt){
   const Lv=G.lvl;
+  // ---- moving platforms: advance, then carry anything standing on them ----
+  if(G.movs&&G.movs.length){
+    G.movs.forEach(m=>{
+      m.px=m.x; m.py=m.y; m.t+=dt;
+      const o=Math.sin(m.t*m.sp)*m.range;
+      m.x=m.hx+m.ax*o; m.y=m.hy+m.ay*o;
+      const onIt = P.onGround && P.x+P.w>m.px+2 && P.x<m.px+m.w-2 &&
+                   Math.abs((P.y+P.h)-m.py)<4;
+      if(onIt){ P.x+=m.x-m.px; P.y+=m.y-m.py; }
+    });
+    G.plats=(Lv.plats||[]).concat(G.movs.map(m=>[m.x,m.y,m.w,m.h]));
+  }else G.plats=(Lv.plats||[]).slice();
   // ---- horizontal ----
   const dir=(K.right?1:0)-(K.left?1:0);
   if(dir) P.face=dir;
-  P.vx += (dir*RUN - P.vx) * (P.onGround?0.30:0.12);
+  const RUN_NOW = P.ride?300:RUN;
+  P.vx += (dir*RUN_NOW - P.vx) * (P.onGround?0.30:0.12);
   if(!dir) P.vx *= P.onGround?0.72:AIR;
   P.x += P.vx*dt;
   // Keep the player inside the level. Without this you can sprint past the boss
@@ -443,13 +586,27 @@ function step(dt){
   P.coyote = P.onGround?0.09:Math.max(0,P.coyote-dt);
   if(K.jumpPressed){P.buffer=0.13; K.jumpPressed=false;}
   P.buffer=Math.max(0,P.buffer-dt);
-  if(P.buffer>0 && P.coyote>0){ P.vy=JUMP; P.buffer=0; P.coyote=0; P.onGround=false; }
+  if(P.buffer>0 && P.coyote>0){ P.vy=P.ride?-625:JUMP; P.buffer=0; P.coyote=0; P.onGround=false; }
   if(!K.jump && P.vy<-150) P.vy=-150;          // variable jump height
   // ---- animation phase ----
   if(P.onGround && Math.abs(P.vx)>14) P.phase += Math.abs(P.vx)*dt*0.10;
   else if(P.onGround) P.phase += (0 - (P.phase%(Math.PI*2)))*0.0;
   // ---- fell off the world ----
   if(P.y>DEATH_Y) hurt(true);
+  // ---- the herd ----
+  G.pals.forEach(a=>{ a.moving=false; });
+  if(G.charge){
+    const c=G.charge;
+    c.x += c.dir*430*dt; c.life-=dt;
+    G.foes.forEach(f=>{ if(!f.dead && Math.abs(f.x-c.x)<22 && Math.abs(f.y-c.y)<34){
+      f.dead=0.001; G.shake=.25; toast(foeName(f),"flattened by half a tonne of friend."); } });
+    if(G.boss&&G.boss.started&&G.boss.cur){ const f=G.boss.cur;
+      if(Math.abs(f.x-c.x)<22 && f.hp>0){ f.hp--; f.small=true; f.stun=0.9;
+        toast(foeName(f), f.hp<=0?"trampled. Next.":"knocked back by the bull."); } }
+    if(c.life<=0 || c.x<G.cam-120 || c.x>G.cam+VW+160) G.charge=null;
+  }
+  // ---- lasso ----
+  lassoStep(dt);
   // ---- foes ----
   G.foes.forEach(f=>{
     if(f.dead){ f.dead+=dt; return; }
@@ -458,9 +615,19 @@ function step(dt){
     if(Math.abs(f.x-f.home)>f.range) f.dir*=-1;
     const fb={x:f.x-9,y:f.y-20,w:18,h:20}, pb=pbox();
     if(rectHit(pb,fb)){
-      if(P.vy>60 && P.y+P.h < f.y-6){                       // stomped: feet clearly above
+      if(P.ride){                       // mounted: ride straight through them
+        f.dead=0.001; G.shake=.2; toast(foeName(f),"ridden down.");
+        return;
+      }
+      const above = P.vy>60 && P.y+P.h < f.y-6;
+      // Anxiety hovers out of reach and Insecurity is all shadow and edges —
+      // neither can be stomped. The rope is the only answer for those two.
+      if(above && f.kind==="dbt"){
         f.dead=0.001; P.vy=-300; G.shake=0.18;
-        toast(f.kind==="anx"?"Anxiety":f.kind==="dbt"?"Self-Doubt":"Insecurity","quieter now.");
+        toast(foeName(f),"stomped. Quieter now.");
+      } else if(above){
+        P.vy=-260; hurt(false);
+        toast(foeName(f),"cannot be stomped. Use the rope.");
       } else hurt(false);
     }
   });
@@ -468,7 +635,7 @@ function step(dt){
   // ---- gems ----
   G.gems.forEach(g=>{
     if(g.got)return;
-    if(rectHit(pbox(),{x:g.x-8,y:g.y-8,w:16,h:16})){
+    if(rectHit(pbox(),{x:g.x-10,y:g.y-11,w:20,h:22})){
       g.got=true;
       if(!G.codes.includes(g.ci)){G.codes.push(g.ci); el("hcode").textContent=G.codes.length;}
       toast("Code of the West · "+CODES[g.ci][0], CODES[g.ci][1]);
@@ -484,10 +651,11 @@ function step(dt){
   // ---- boss ----
   if(Lv.boss) bossStep(dt);
   // ---- goal ----
+  const ms=misState();
+  el("mis").textContent=ms.label;
   if(!G.goalHit && P.x>levelGoalX()){
-    if(!Lv.boss || (G.boss&&G.boss.done)) finishLevel();
-    else if(G.boss && G.boss.started && toastT<=0)
-      toast("Not yet","All three are still standing. Come down on top of them.");
+    if(ms.done) finishLevel();
+    else if(toastT<=0) toast("Not finished", G.lvl.mission.hint);
   }
   // ---- camera ----
   const want=Math.max(0,Math.min(Lv.len-VW, P.x-VW*0.40));
@@ -496,8 +664,87 @@ function step(dt){
   if(toastT>0){toastT-=dt; if(toastT<=0)toastEl.classList.remove("on");}
 }
 function pbox(){return {x:P.x,y:P.y,w:P.w,h:P.h};}
+function handPos(){ return {x:P.x+P.w/2+P.face*6.5, y:P.y+P.h-14}; }
+function ropeTip(){
+  const h=handPos(), L0=P.la.len;
+  return {x:h.x+P.face*L0, y:h.y-3-Math.sin(Math.min(1,L0/LAS_MAX)*Math.PI)*6};
+}
+function liveFoes(){
+  const a=G.foes.filter(f=>!f.dead);
+  if(G.boss&&G.boss.started) a.push(...G.boss.foes.filter(f=>f.hp>0));
+  return a;
+}
+function ropeCatch(f){
+  // Boss demons take two ropings; ordinary ones go down in one.
+  if(f.hp!==undefined){
+    f.hp--; f.small=true;
+    toast(foeName(f), f.hp<=0?"roped, and sits down a respectful distance back."
+                            :"roped once. Still standing. Go again.");
+    if(f.hp>0){
+      // Knock it back and stagger it. Without this the boss is a grind: it
+      // walks straight back into you while the rope is still on cooldown.
+      f.stun=0.9; f.x += (f.x>P.x?1:-1)*34;
+      P.la.st=0; P.la.cool=LAS_COOL; P.la.tgt=null; return;
+    }
+  }else{
+    f.dead=0.001;
+    toast(foeName(f),"hog-tied.");
+  }
+  G.roped=(G.roped||0)+1;
+}
+function palCatch(a){
+  a.used=true;
+  if(a.kind==="horse"){
+    a.gone=true; P.ride={t:0};
+    toast("Horse","Up you get. Faster, higher, and demons bounce off.");
+  }else if(a.kind==="bull"){
+    a.gone=true;
+    // The bull charges the way D! is facing and flattens whatever it meets.
+    G.charge={x:a.x, y:GROUND_Y, dir:P.face, life:3.2, seed:9, moving:true, kind:"bull"};
+    toast("Bull","Stand back. He does not stop for anybody.");
+  }else{
+    a.gone=true;
+    G.lives=Math.min(5,G.lives+1); el("hlife").textContent=G.lives;
+    toast("Cow","Grit restored. She was never in a hurry about it.");
+  }
+}
+function foeName(f){return f.kind==="anx"?"Anxiety":f.kind==="dbt"?"Self-Doubt":"Insecurity";}
+function lassoStep(dt){
+  const A=P.la;
+  if(A.cool>0) A.cool-=dt;
+  if(A.st===0){
+    if(K.lassoPressed && A.cool<=0){ A.st=1; A.t=0; A.len=0; A.tgt=null; }
+    K.lassoPressed=false; return;
+  }
+  K.lassoPressed=false;
+  A.t+=dt;
+  if(A.st===1){                                  // wind-up: loop spins overhead
+    if(A.t>=LAS_WIND){ A.st=2; A.t=0; A.len=0; }
+    return;
+  }
+  if(A.st===2){                                  // rope flying out
+    A.len+=LAS_SPEED*dt;
+    const tip=ropeTip();
+    const pal=G.pals.find(a=>!a.used && !a.gone &&
+        Math.abs(a.x-tip.x)<20 && Math.abs((a.y-22)-tip.y)<34);
+    if(pal){ A.st=0; A.len=0; A.cool=LAS_COOL; palCatch(pal); G.shake=.16; return; }
+    const hit=liveFoes().find(f=>Math.abs(f.x-tip.x)<16 && Math.abs((f.y-10)-tip.y)<34);
+    if(hit){ A.st=3; A.t=0; A.tgt=hit; ropeCatch(hit); G.shake=.18; return; }
+    if(A.len>=LAS_MAX){ A.st=4; A.t=0; }
+    return;
+  }
+  if(A.st===3){                                  // reeling the catch in
+    if(A.tgt){ A.tgt.x += ((P.x+P.w/2)-A.tgt.x)*Math.min(1,dt*7); }
+    if(A.t>=LAS_REEL){ A.st=0; A.tgt=null; A.cool=LAS_COOL; }
+    return;
+  }
+  if(A.st===4){                                  // missed: reel the rope back
+    A.len-=LAS_SPEED*1.5*dt;
+    if(A.len<=0){ A.st=0; A.len=0; A.cool=LAS_COOL; }
+  }
+}
 function collide(axis,prevBottom){
-  const ps=G.lvl.plats;
+  const ps=G.plats||G.lvl.plats;
   for(let i=0;i<ps.length;i++){
     const p={x:ps[i][0],y:ps[i][1],w:ps[i][2],h:ps[i][3]};
     // Thin ledges are one-way: you rise through them and land on top. Solid
@@ -521,6 +768,13 @@ function collide(axis,prevBottom){
 }
 function hurt(fell){
   if(P.hurt>0 && !fell) return;
+  if(P.ride && !fell){
+    // The horse takes the hit and bolts. Costs you the mount, not a life.
+    P.ride=null; P.hurt=1.2; P.vy=-220; G.shake=.3;
+    toast("Horse","took that one for you and bolted.");
+    return;
+  }
+  P.ride=null;
   G.lives--; el("hlife").textContent=Math.max(0,G.lives); G.shake=0.3; P.hurt=1.2;
   if(G.lives<=0){ G.mode="card";
     showCard("Winded","You get put down in the dirt","It happens. It is not a moral event, though they will try to bill it as one.\nYour health matters more than your beliefs. Rest is a legal move.",
@@ -542,31 +796,50 @@ function hurt(fell){
   P.vy=-190; P.vx=0;
 }
 /* --------------------------------------------------------------- boss ----- */
+// Three rounds, one demon at a time. All three at once was unreadable noise —
+// you could not tell what had hit you, and the fight taught you nothing.
+const BOSS_ORDER=[
+  {kind:"dbt",hp:2,x:1740,range:150,sp:54,line:"Name one thing you actually finished."},
+  {kind:"ins",hp:2,x:1800,range:170,sp:46,line:"You do not belong up on this ridge."},
+  {kind:"anx",hp:3,x:1780,range:190,sp:64,line:"What if it goes wrong. What if it already has."},
+];
+function spawnBoss(){
+  const B=G.boss, d=BOSS_ORDER[B.stage];
+  const f={kind:d.kind,x:d.x,y:d.kind==="anx"?196:210,dir:1,seed:B.stage+1,
+           hp:d.hp,small:false,dead:0,home:d.x,range:d.range,sp:d.sp};
+  B.cur=f; B.foes.push(f);
+  toast(foeName(f)+" · round "+(B.stage+1)+" of 3", d.line);
+}
 function bossStep(dt){
   const B=G.boss;
   if(B.done) return;
-  if(!B.started && P.x>1480){
-    B.started=true;
-    B.foes=[{kind:"anx",x:1720,y:196,dir:1,seed:1,hp:2,small:false,dead:0,home:1720,range:150},
-            {kind:"dbt",x:1900,y:210,dir:-1,seed:2,hp:2,small:false,dead:0,home:1900,range:170},
-            {kind:"ins",x:2020,y:210,dir:1,seed:3,hp:2,small:false,dead:0,home:2020,range:140}];
-    toast("The Last Ride","All three of them. Stomp each twice.");
-  }
-  if(!B.started) return;
-  B.foes.forEach(f=>{
-    if(f.hp<=0) return;
-    const sp=f.kind==="anx"?58:f.kind==="dbt"?48:40;
-    f.x += f.dir*sp*dt;
-    if(f.kind==="anx") f.y=194+Math.sin(G.t*3.4+f.seed)*16;
-    if(Math.abs(f.x-f.home)>f.range) f.dir*=-1;
-    const fb={x:f.x-9,y:f.y-20,w:18,h:20};
-    if(rectHit(pbox(),fb)){
-      if(P.vy>60 && P.y+P.h<f.y-6){ f.hp--; P.vy=-320; G.shake=.22; f.small=true;
-        toast(f.kind==="anx"?"Anxiety":f.kind==="dbt"?"Self-Doubt":"Insecurity", f.hp<=0?"sits down a respectful distance back.":"gets smaller. Not gone. Smaller."); }
-      else hurt(false);
+  if(!B.started){ if(P.x>1480){ B.started=true; B.stage=0; spawnBoss(); } return; }
+  if(B.gap>0){                                  // breather between rounds
+    B.gap-=dt;
+    if(B.gap<=0){
+      B.stage++;
+      if(B.stage>=BOSS_ORDER.length){ B.done=true;
+        toast("Eight seconds","All three ride behind you now. Head for the flag."); }
+      else spawnBoss();
     }
-  });
-  if(B.foes.every(f=>f.hp<=0)) B.done=true;
+    return;
+  }
+  const f=B.cur; if(!f) return;
+  if(f.stun>0){ f.stun-=dt; }          // staggered: no move, no contact damage
+  else {
+    f.x += f.dir*f.sp*dt;
+    if(Math.abs(f.x-f.home)>f.range) f.dir*=-1;
+  }
+  if(f.kind==="anx") f.y=194+Math.sin(G.t*3.4+f.seed)*16;
+  const fb={x:f.x-9,y:f.y-20,w:18,h:20};
+  if(f.stun<=0 && rectHit(pbox(),fb)){
+    const above=P.vy>60 && P.y+P.h<f.y-6;
+    if(above && f.kind==="dbt"){ f.hp--; P.vy=-320; G.shake=.22; f.small=true;
+      toast(foeName(f), f.hp<=0?"down. Next one.":"smaller. Not gone. Again."); }
+    else if(above){ P.vy=-260; hurt(false); toast(foeName(f),"cannot be stomped. Use the rope."); }
+    else hurt(false);
+  }
+  if(f.hp<=0 && B.cur===f){ B.cur=null; B.gap=0.9; }
 }
 function finishLevel(){
   G.goalHit=true; G.mode="card";
@@ -595,7 +868,7 @@ function render(){
   const shy=G.shake>0?(Math.random()-0.5)*4*G.shake/0.3:0;
   ctx.save(); ctx.translate(-G.cam+shx,-CAMY+shy);
   // platforms
-  (Lv.plats||[]).forEach(p=>{
+  (G.plats||Lv.plats||[]).forEach(p=>{
     if(p[0]+p[2]<G.cam-40||p[0]>G.cam+VW+40)return;
     // Solid ground is filled all the way down to the bottom of the view so the
     // gaps between segments read as real holes rather than shallow steps.
@@ -624,9 +897,20 @@ function render(){
     setInk("#c4552a",1.2); L(-4,-4,4,-4); L(-4,0,4,0); L(-4,4,1,4);
     ctx.restore(); });
   // foes
+  // the herd
+  G.pals.forEach(a=>{ if(a.gone||a.x<G.cam-80||a.x>G.cam+VW+80)return; drawPal(a); });
+  if(G.charge){ const c=G.charge; c.moving=true; drawBull(c);
+    setInk("#c4552a",1.6);                       // dust trail
+    for(let i=1;i<4;i++) L(c.x-c.dir*(14+i*11), GROUND_Y-4-i*2, c.x-c.dir*(20+i*11), GROUND_Y-2-i*2); }
+  // moving platform bolts, so they read as machinery rather than scenery
+  (G.movs||[]).forEach(m=>{ if(m.x+m.w<G.cam-40||m.x>G.cam+VW+40)return;
+    setInk("#c4552a",1.8);
+    ctx.beginPath(); ctx.arc(m.x+6,m.y+5,2,0,7); ctx.stroke();
+    ctx.beginPath(); ctx.arc(m.x+m.w-6,m.y+5,2,0,7); ctx.stroke(); });
   G.foes.forEach(f=>{ if(f.dead){ctx.save();ctx.globalAlpha=Math.max(0,1-f.dead*2.4);
       ctx.translate(0,-f.dead*40);drawFoe(f);ctx.restore();} else drawFoe(f); });
-  if(G.boss&&G.boss.started) G.boss.foes.forEach(f=>{ if(f.hp>0) drawFoe(f);
+  if(G.boss&&G.boss.started) G.boss.foes.forEach(f=>{ if(f.hp>0){
+      if(f.stun>0 && Math.floor(G.t*14)%2){ /* blink while staggered */ } else drawFoe(f); }
     else { ctx.save(); ctx.globalAlpha=.4; f.small=true; drawFoe(f); ctx.restore(); } });
   // goal flag
   const gx=levelGoalX();
@@ -636,7 +920,32 @@ function render(){
     ctx.moveTo(gx,150); ctx.lineTo(gx+26,158); ctx.lineTo(gx,168); ctx.closePath(); ctx.fill();
   }
   // player
-  if(!(P.hurt>0 && Math.floor(G.t*18)%2)) drawD(P.x+P.w/2,P.y+P.h,P.phase,P.onGround,P.vy,P.face,false);
+  const pose = P.la.st===1 ? 1 : (P.la.st===2||P.la.st===3||P.la.st===4) ? 2 : 0;
+  if(!(P.hurt>0 && Math.floor(G.t*18)%2)){
+    if(P.ride) drawRider(P.x+P.w/2,P.y+P.h,P.face);
+    else drawD(P.x+P.w/2,P.y+P.h,P.phase,P.onGround,P.vy,P.face,false,pose);
+  }
+  drawLasso();
+  ctx.restore();
+}
+
+function drawLasso(){
+  const A=P.la; if(A.st===0) return;
+  const h=handPos();
+  setInk("#8a6a2f",2.1);
+  if(A.st===1){                                  // winding: loop spins overhead
+    const cx=P.x+P.w/2+P.face*4, cy=P.y+P.h-40;
+    L(h.x,h.y,cx,cy+3);
+    ctx.save(); ctx.translate(cx,cy); ctx.rotate(G.t*16);
+    ctx.beginPath(); ctx.ellipse(0,0,9.5,3.6,0,0,7); ctx.stroke(); ctx.restore();
+    return;
+  }
+  const tip = (A.st===3&&A.tgt) ? {x:A.tgt.x,y:A.tgt.y-10} : ropeTip();
+  ctx.beginPath(); ctx.moveTo(h.x,h.y);
+  ctx.quadraticCurveTo((h.x+tip.x)/2, Math.min(h.y,tip.y)-13, tip.x,tip.y);
+  ctx.stroke();
+  ctx.save(); ctx.translate(tip.x,tip.y); ctx.rotate(G.t*12);
+  ctx.beginPath(); ctx.ellipse(0,0,8.2,3.4,0,0,7); ctx.stroke();
   ctx.restore();
 }
 
