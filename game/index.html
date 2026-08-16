@@ -45,6 +45,17 @@ canvas{display:block;width:100%;height:100%;image-rendering:auto}
 #hud .box{background:rgba(233,221,194,.82);border:2px solid var(--ink);padding:.2em .5em}
 #hud .rust{color:var(--rust)}
 #lvl{margin-left:auto;text-transform:uppercase}
+/* The one thing in the HUD you can actually press, so it has to take pointer
+   events back and be big enough for a thumb. */
+#exit{pointer-events:auto;cursor:pointer;color:var(--rust);padding:.3em .7em;user-select:none}
+/* Guarded: on a touch screen :hover sticks after a tap and the chip would
+   stay lit up long after the card is gone. */
+@media (hover:hover){ #exit:hover{background:var(--rust);color:#fff;border-color:var(--ink)} }
+#exit:active{transform:translate(1px,1px)}
+/* The visible chip matches the rest of the HUD; the pressable area around it
+   is grown to a thumb's worth so a small badge is not a small target. */
+#exit{position:relative}
+#exit::after{content:"";position:absolute;left:-12px;right:-12px;top:-12px;bottom:-12px}
 
 /* overlay cards */
 #ov{position:absolute;inset:0;display:none;place-items:center;background:rgba(20,15,8,.82);z-index:6;padding:2.2%}
@@ -94,6 +105,7 @@ canvas{display:block;width:100%;height:100%;image-rendering:auto}
       <span class="box">CODE <span class="rust" id="hcode">0</span>/<span id="hcodemax">14</span></span>
       <span class="box" id="mis">—</span>
       <span class="box" id="lvl">The Salt Desert</span>
+      <span class="box" id="exit" role="button" tabindex="0" title="Leave the county">EXIT</span>
     </div>
     <div id="bub"></div>
     <div id="toast"></div>
@@ -327,7 +339,15 @@ addEventListener("keydown",e=>{
     if(k==="lasso"&&!K.lasso)K.lassoPressed=true;
     K[k]=true; e.preventDefault();
   }
-  if(e.code==="Enter"||e.code==="Escape"){ const b=card.querySelector(".btn"); if(b&&ov.classList.contains("on"))b.click(); }
+  if(e.code==="Escape" && !ov.classList.contains("on")){ askExit(); return; }
+  if(e.code==="Enter"||e.code==="Escape"){
+    if(!ov.classList.contains("on")) return;
+    // On the leave-the-county card the two keys mean opposite things: Escape
+    // backs out, Enter goes through with it. Everywhere else both just continue.
+    const bs=card.querySelectorAll(".btn");
+    if(exitPend && bs.length>1){ (e.code==="Escape"?bs[0]:bs[1]).click(); return; }
+    if(bs[0]) bs[0].click();
+  }
 });
 addEventListener("keyup",e=>{const k=keymap[e.code]; if(k){K[k]=false; e.preventDefault();}});
 function bindPad(id,key){
@@ -805,17 +825,34 @@ function misState(){
 }
 
 /* ================================================================ overlays */
-function showCard(title,sub,body,btn,fn,btn2,fn2){
+function showCard(title,sub,body,btn,fn,btn2,fn2,keys){
   G.mode="card";
   card.innerHTML=`<h2>${title}</h2><div class="sub">${sub}</div>`+
     body.split("\n").map(p=>`<p>${p}</p>`).join("")+
-    `<div class="keys">${isTouch?"◀ ▶ move · ▲ jump · ➰ lasso":"← → move · ↑ / W jump · SPACE throw the lasso · Enter to continue"}</div>`;
+    `<div class="keys">${keys!==undefined?keys:(isTouch?"◀ ▶ move · ▲ jump · ➰ lasso":"← → move · ↑ / W jump · SPACE throw the lasso · Enter to continue")}</div>`;
   const b=document.createElement("button"); b.className="btn go"; b.textContent=btn;
   b.onclick=()=>{ov.classList.remove("on"); fn&&fn();}; card.appendChild(b);
   if(btn2){const b2=document.createElement("button");b2.className="btn";b2.textContent=btn2;
     b2.onclick=()=>{ov.classList.remove("on"); fn2&&fn2();}; card.appendChild(b2);}
   ov.classList.add("on");
 }
+/* Leaving the game. Asked, never assumed — a stray tap on the HUD should not
+   throw away a run. The card pauses the game the same way every other card
+   does, and answering "Stay" puts the player back exactly where they were. */
+let exitPend=false;
+function askExit(){
+  if(exitPend || ov.classList.contains("on")) return;   // a card is already up
+  const back = G.mode;
+  exitPend=true;
+  showCard("Ride out of Adàwe?","Back to wantedbull.com",
+    "The trail out leads to the front page.\nNothing is saved — come back and you start again in the salt desert.",
+    "Stay", ()=>{ exitPend=false; G.mode=back; },
+    "Ride out", ()=>{ location.href="/"; },
+    isTouch ? "tap Stay to carry on" : "Esc to stay · Enter to ride out");
+}
+el("exit").addEventListener("click",askExit);
+el("exit").addEventListener("keydown",e=>{ if(e.code==="Enter"||e.code==="Space"){e.preventDefault();askExit();} });
+
 let toastT=0;
 // A fixed hold was fine for "hog-tied." and far too short for a full Code of
 // the West line, which is the one thing in here worth reading. Length sets the
