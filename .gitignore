@@ -5,3 +5,6 @@ _originals/
 
 # Staging folder used during the media migration.
 _r2-upload/
+
+# Scratch: files the Cowork device bridge could not delete itself.
+_to_delete/

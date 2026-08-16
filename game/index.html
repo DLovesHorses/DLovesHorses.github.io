@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
+<title>The Bullrider's Last Ride — a game about D!</title>
+<meta name="description" content="A stick-figure western platformer about D! (Puranjan Gaur), the last cowboy in his family, and the three demons that rode with him: Anxiety, Self-Doubt and Insecurity."/>
+<link rel="canonical" href="https://wantedbull.com/game/"/>
+<meta property="og:type" content="website"/>
+<meta property="og:title" content="The Bullrider's Last Ride"/>
+<meta property="og:description" content="A stick-figure western platformer about D!, the last cowboy in his family, and the three demons that rode with him."/>
+<meta property="og:url" content="https://wantedbull.com/game/"/>
+<meta property="og:image" content="https://wantedbull.com/og-image.jpg"/>
+<link rel="shortcut icon" type="image/ico" href="../data/favicon.ico"/>
+<style>
+:root{
+  --ink:#241c14; --paper:#e9ddc2; --rust:#c4552a; --red:#a5321f; --soft:#6b5843;
+  --ui: ui-monospace,"Courier New",Courier,monospace;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none}
+html,body{margin:0;height:100%;overflow:hidden;background:#140f08}
+body{font-family:var(--ui);color:var(--ink);touch-action:none;overscroll-behavior:none}
+#wrap{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0}
+#stage{position:relative;width:100%;max-width:1100px;aspect-ratio:16/9;max-height:100dvh;background:var(--paper);box-shadow:0 0 50px rgba(0,0,0,.7)}
+/* Portrait phones get a taller play area — a 16:9 sliver on a tall screen is
+   unusably small, and the thumb controls must never sit on top of the game. */
+@media (orientation:portrait){ #stage{aspect-ratio:3/4;max-height:74dvh} }
+canvas{display:block;width:100%;height:100%;image-rendering:auto}
+
+/* HUD */
+#hud{position:absolute;left:0;right:0;top:0;display:flex;align-items:center;gap:.6em;
+     padding:.45em .7em;font-size:clamp(10px,1.5vw,14px);letter-spacing:.08em;pointer-events:none;z-index:3}
+#hud .box{background:rgba(233,221,194,.82);border:2px solid var(--ink);padding:.2em .5em}
+#hud .rust{color:var(--rust)}
+#lvl{margin-left:auto;text-transform:uppercase}
+
+/* overlay cards */
+#ov{position:absolute;inset:0;display:none;place-items:center;background:rgba(20,15,8,.82);z-index:6;padding:4%}
+#ov.on{display:grid}
+#card{max-width:30em;background:var(--paper);border:3px solid var(--ink);padding:1.1em 1.2em;text-align:center;
+      box-shadow:8px 8px 0 rgba(0,0,0,.35)}
+#card h2{margin:.1em 0 .1em;font-size:clamp(1.1rem,3.4vw,1.8rem);letter-spacing:.03em}
+#card .sub{color:var(--rust);font-size:clamp(.62rem,1.7vw,.8rem);letter-spacing:.22em;text-transform:uppercase;margin-bottom:.9em}
+#card p{font-family:Georgia,serif;font-size:clamp(.82rem,2.1vw,1rem);line-height:1.5;margin:.35em 0}
+#card .keys{font-size:clamp(.6rem,1.6vw,.76rem);color:var(--soft);margin-top:1em;line-height:1.7}
+.btn{font-family:var(--ui);font-size:clamp(.72rem,2vw,.92rem);letter-spacing:.1em;text-transform:uppercase;
+     background:var(--paper);border:3px solid var(--ink);padding:.6em 1.1em;margin:.9em .25em 0;cursor:pointer;
+     box-shadow:4px 4px 0 var(--ink);min-height:46px}
+.btn:active{transform:translate(4px,4px);box-shadow:none}
+.btn.go{background:var(--rust);color:#fff;border-color:var(--ink)}
+
+/* toast */
+#toast{position:absolute;left:50%;top:16%;transform:translateX(-50%);z-index:5;pointer-events:none;
+       background:var(--paper);border:2px solid var(--rust);padding:.5em .8em;max-width:80%;text-align:center;
+       font-family:Georgia,serif;font-size:clamp(.72rem,1.9vw,.92rem);opacity:0;transition:opacity .25s}
+#toast.on{opacity:1}
+#toast b{display:block;font-family:var(--ui);font-size:.72em;letter-spacing:.14em;text-transform:uppercase;color:var(--rust)}
+
+/* speech bubble for signs */
+#bub{position:absolute;z-index:4;pointer-events:none;background:var(--paper);border:2px solid var(--ink);
+     padding:.35em .6em;font-family:Georgia,serif;font-size:clamp(.68rem,1.8vw,.88rem);max-width:16em;
+     opacity:0;transition:opacity .18s;transform:translate(-50%,-100%)}
+#bub.on{opacity:1}
+
+/* touch controls */
+#pad{width:100%;max-width:660px;display:none;justify-content:space-between;align-items:center;
+     padding:min(3vh,18px) 5% min(4vh,26px);gap:.6rem;flex:0 0 auto}
+#pad.on{display:flex}
+.pbtn{width:min(21vw,86px);height:min(21vw,86px);border-radius:50%;
+      background:rgba(233,221,194,.14);border:3px solid rgba(233,221,194,.55);color:#e9ddc2;
+      display:grid;place-items:center;font-size:clamp(20px,6vw,32px);touch-action:none}
+.pbtn:active,.pbtn.hit{background:rgba(196,85,42,.75);color:#fff}
+.padL{display:flex;gap:.7rem}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="stage">
+    <canvas id="cv"></canvas>
+    <div id="hud">
+      <span class="box">GRIT <span class="rust" id="hlife">3</span></span>
+      <span class="box">CODE <span class="rust" id="hcode">0</span>/<span id="hcodemax">14</span></span>
+      <span class="box" id="lvl">The Salt Desert</span>
+    </div>
+    <div id="bub"></div>
+    <div id="toast"></div>
+    <div id="ov"><div id="card"></div></div>
+  </div>
+  <div id="pad">
+    <div class="padL"><div class="pbtn" id="pleft">◀</div><div class="pbtn" id="pright">▶</div></div>
+    <div class="pbtn" id="pjump">▲</div>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ==================================================================== setup */
+const cv=document.getElementById("cv"), ctx=cv.getContext("2d");
+let VW=480, VH=270;      // world units visible (VW adapts, VH follows the aspect)
+let SC=1, DPR=1, CAMY=0;
+const GROUND_Y=210;      // every level's ground line lives here
+const DEATH_Y=430;       // fall past this and you have left the world
+function resize(){
+  const r=cv.getBoundingClientRect();
+  DPR=Math.min(2,window.devicePixelRatio||1);
+  cv.width=Math.round(r.width*DPR); cv.height=Math.round(r.height*DPR);
+  // Zoom in on narrow screens so the character is not a speck.
+  VW = r.width<560 ? 300 : 480;
+  SC = cv.width/VW;
+  VH = VW*cv.height/cv.width;
+  // Keep the ground line at ~80% down the view whatever shape the screen is.
+  CAMY = GROUND_Y - 0.80*VH;
+}
+addEventListener("resize",resize);
+
+const el=id=>document.getElementById(id);
+const ov=el("ov"), card=el("card"), toastEl=el("toast"), bub=el("bub"), pad=el("pad");
+const isTouch = matchMedia("(hover:none)").matches || "ontouchstart" in window;
+if(isTouch) pad.classList.add("on");
+
+/* ==================================================================== input */
+const K={left:false,right:false,jump:false,jumpPressed:false};
+const keymap={ArrowLeft:"left",KeyA:"left",ArrowRight:"right",KeyD:"right",
+              ArrowUp:"jump",KeyW:"jump",Space:"jump"};
+addEventListener("keydown",e=>{
+  const k=keymap[e.code];
+  if(k){ if(k==="jump"&&!K.jump)K.jumpPressed=true; K[k]=true; e.preventDefault(); }
+  if(e.code==="Enter"||e.code==="Escape"){ const b=card.querySelector(".btn"); if(b&&ov.classList.contains("on"))b.click(); }
+});
+addEventListener("keyup",e=>{const k=keymap[e.code]; if(k){K[k]=false; e.preventDefault();}});
+function bindPad(id,key){
+  const b=el(id);
+  const on=e=>{e.preventDefault(); if(key==="jump"&&!K.jump)K.jumpPressed=true; K[key]=true; b.classList.add("hit");};
+  const off=e=>{e.preventDefault(); K[key]=false; b.classList.remove("hit");};
+  b.addEventListener("touchstart",on,{passive:false}); b.addEventListener("touchend",off,{passive:false});
+  b.addEventListener("touchcancel",off,{passive:false});
+  b.addEventListener("mousedown",on); addEventListener("mouseup",off);
+}
+bindPad("pleft","left"); bindPad("pright","right"); bindPad("pjump","jump");
+
+/* ============================================================ code of west */
+const CODES=[
+ ["Roots","Remember your roots. Stay on the ground, but dream about stars."],
+ ["Free","If you love someone, set them free."],
+ ["Finish","This world rewards real bull riders, not drifters. Finish what you start."],
+ ["Honey","A little bit of Love can convert salty sand into purest honey."],
+ ["Knowledge","Never charge for your knowledge — but never do the finding for someone who hasn't tried."],
+ ["Chance","Don't judge a person by their first impression. At least give them a chance."],
+ ["Gardner","Be the Gardner. Nurture the weak. Love the small."],
+ ["Mud","Only time can clear muddy water. Stand back and let it settle."],
+ ["Offer","Don't beg; offer."],
+ ["Humanity","Make humanity your religion."],
+ ["Music","Music is the link between Mathematics and Emotions. Silence is part of music."],
+ ["Companion","Use Music as your companion, not as your escape."],
+ ["Today","You don't control whether you see tomorrow. You fully control whether today was worth it."],
+ ["Regret","Do everything without regrets."],
+];
+el("hcodemax").textContent=CODES.length;
+
+/* ==================================================================== level */
+// plat: [x,y,w,h]  · foe:[x,y,kind,range]  · gem:[x,y,codeIndex]
+// sign:[x,y,text]  · deco:[x,y,kind]
+function ground(x,w,y){return [x,y,w,40];}
+const LEVELS=[
+{ id:"desert", name:"The Salt Desert", sub:"Age twelve. One hat, one dog, no plan.",
+  intro:"You are twelve years old. Behind you is home. Ahead of you is everything else.\nYour best friend Kalu had three legs and never once mentioned it.",
+  sky:"#e9ddc2", far:"dune", len:2400, spawn:[40,150],
+  plats:[ground(0,780,210),ground(840,430,210),ground(1330,540,210),ground(1930,480,210),
+          [560,160,70,12],[700,120,60,12],[1260,150,60,12],[1420,120,70,12],
+          [1700,160,70,12],[1810,120,60,12],[2130,150,80,12]],
+  foes:[[940,210,"anx",70],[1500,210,"anx",100],[2050,210,"dbt",80]],
+  gems:[[600,120,0],[1440,80,1],[2160,110,3]],
+  signs:[[120,178,"Arrows or A/D to walk. Up, W or Space to jump. Stomp the red things."],
+         [640,178,"Kalu is buried back there under a stone you could lift."],
+         [1360,178,"That red one has been following you since the salt flat."]],
+  deco:[[300,"cactus"],[1000,"cactus"],[1600,"skull"],[2050,"cactus"]],
+  goal:2340 },
+
+{ id:"motel", name:"The Long Night Inn", sub:"Thunder Bay, 2021. Twenty-three rooms a day.",
+  intro:"The job is cleaning rooms. It is not technical. It is intense, which is a different and less respected thing.\nYou look at twenty-three the way you look at a badly routed board.",
+  sky:"#ded0b2", far:"town", len:2600, spawn:[40,150],
+  plats:[ground(0,540,210),ground(600,340,210),ground(1000,380,210),ground(1440,440,210),ground(1940,660,210),
+         [420,158,70,12],[560,118,60,12],[900,150,70,12],[1180,150,60,12],[1300,110,60,12],
+         [1420,150,70,12],[1740,160,70,12],[1860,120,60,12],[2200,150,70,12],[2330,110,70,12]],
+  foes:[[780,210,"dbt",100],[1180,210,"dbt",130],[1650,210,"anx",150],[2150,210,"dbt",150]],
+  gems:[[580,80,2],[1320,72,12],[2360,72,5]],
+  signs:[[110,178,"Eighty-five rooms a day, by the end."],
+         [1060,178,"They offered a promotion. You turned it down. Gladly. Nobody understood."],
+         [2010,178,"You finished the contract because you gave your word. That is the whole trick."]],
+  deco:[[250,"bed"],[760,"bed"],[1550,"bed"],[2250,"bed"]],
+  goal:2540 },
+
+{ id:"lab", name:"The Lab", sub:"uOttawa. Twenty-three amps, looking for somewhere to be.",
+  intro:"Hot flux and undergraduate panic. Two students are staring at a board that has begun, faintly, to smell like a decision.\n\"It was working yesterday.\" It was not working yesterday.",
+  sky:"#e4d8bd", far:"lab", len:2800, spawn:[40,150],
+  plats:[ground(0,500,210),ground(560,320,210),ground(940,300,210),ground(1300,320,210),ground(1680,360,210),ground(2100,700,210),
+         ground(1690,340,210),ground(2120,680,210),
+         [400,155,60,12],[520,115,60,12],[840,150,70,12],[1200,150,60,12],
+         [1560,155,70,12],[1660,115,60,12],[2020,150,70,12],[2350,150,60,12],[2470,110,70,12]],
+  foes:[[720,210,"ins",120],[1090,210,"ins",110],[1460,210,"dbt",120],[1860,210,"ins",140],[2350,210,"anx",200]],
+  gems:[[540,75,4],[1230,110,5],[2500,70,9]],
+  signs:[[110,178,"You found it in nine seconds. You said \"huh, tricky one\" and handed over the multimeter."],
+         [1310,178,"Never do the finding for someone who has not tried first."],
+         [2140,178,"You built the labs they are standing in. That does not make the demons wrong. It outvotes them."]],
+  deco:[[300,"scope"],[1050,"scope"],[1800,"scope"],[2400,"scope"]],
+  goal:2740 },
+
+{ id:"garden", name:"Hope & Memory Garden", sub:"Every plant here is somebody.",
+  intro:"A garden planted for people who died of cancer. Nobody says this out loud; everybody weeds like they know.\nYou are on your knees in it, which is the correct altitude for this work.",
+  sky:"#e7dfc4", far:"garden", len:2600, spawn:[40,150],
+  plats:[ground(0,620,210),ground(680,420,210),ground(1160,340,210),ground(1560,380,210),ground(2000,600,210),
+         [470,150,70,12],[600,110,70,12],[1080,150,70,12],[1520,150,60,12],[1640,110,60,12],
+         [1920,155,70,12],[2260,150,70,12],[2380,108,70,12]],
+  foes:[[880,210,"anx",160],[1330,210,"anx",130],[1750,210,"dbt",150],[2250,210,"anx",200]],
+  gems:[[630,68,6],[1110,110,7],[2410,68,3]],
+  signs:[[110,178,"Kill the unnecessary. Nurture the weak. Love the small."],
+         [1210,178,"You cannot stir muddy water clean. You have tried. It has never once worked."],
+         [2040,178,"You gardened the shelter's yard so the dogs had somewhere decent to run."]],
+  deco:[[220,"tree"],[900,"tree"],[1350,"tree"],[2200,"tree"]],
+  goal:2540 },
+
+{ id:"ridge", name:"ambiBull Ridge", sub:"The last ride. All three of them.",
+  intro:"They have been riding with you since the salt desert and have never missed a day of work.\nYou cannot kill them. That was never on the table. You can get far enough ahead that they ride behind.",
+  sky:"#dfd0ae", far:"ridge", len:2200, spawn:[40,150], boss:true,
+  plats:[ground(0,540,210),ground(600,360,210),ground(1020,340,210),ground(1420,780,210),
+         [430,150,70,12],[560,112,60,12],[980,150,60,12],[1340,150,70,12],
+         [1560,140,80,12],[1760,110,80,12],[1960,140,80,12]],
+  foes:[[780,210,"ins",140],[1190,210,"dbt",140]],
+  gems:[[590,72,10],[1010,110,11],[1800,70,13]],
+  signs:[[110,178,"You built a robot with two legs and no arms to thank your sister."],
+         [1090,178,"Founder. Say it out loud and hear how it sounds."],
+         [1450,178,"Eight seconds. That is all anybody gets."]],
+  deco:[[280,"cactus"],[900,"skull"],[1650,"cactus"]],
+  goal:2140 },
+];
+
+/* ==================================================================== state */
+const G={
+  li:0, lvl:null, t:0, lives:3, codes:[], dead:0, won:false, mode:"menu",
+  cam:0, shake:0, boss:null, goalHit:false,
+  // these must exist before the first render(): the title card draws a level
+  // backdrop before loadLevel() has built any entities.
+  foes:[], gems:[], signs:[]
+};
+const P={x:40,y:150,vx:0,vy:0,w:16,h:30,onGround:false,face:1,phase:0,coyote:0,buffer:0,hurt:0,alive:true,safeX:40,safeY:150};
+
+/* ================================================================== drawing */
+function L(a,b,c,d,w){ctx.beginPath();ctx.moveTo(a,b);ctx.lineTo(c,d);ctx.lineWidth=w||2.4;ctx.stroke();}
+function setInk(c,w){ctx.strokeStyle=c||"#241c14";ctx.lineWidth=w||2.4;ctx.lineCap="round";ctx.lineJoin="round";}
+
+/* --- D! : circle head w/ face, rust hand-drawn hat, swinging arms + legs --- */
+function drawD(x,y,phase,onGround,vy,face,ghost){
+  ctx.save(); ctx.translate(x,y); ctx.scale(face,1);
+  if(ghost)ctx.globalAlpha=.45;
+  setInk("#241c14",2.5);
+  const HEAD_R=5.6, headY=-23.4, hip=-10.4, legLen=11.0, sh=-15.6, armLen=8.4;
+  // Rest angles, measured from straight-down. Without these the limbs hang
+  // vertically and the figure reads as a post; the reference has arms and legs
+  // splayed into a shallow V.
+  const REST_LEG=0.34, REST_ARM=1.02;
+
+  let la,lb,aa,ab;
+  if(!onGround){
+    if(vy<0){ la=-0.50; lb= 0.44; aa=-0.72; ab=-0.52; }   // rising: knees up, arms raised
+    else    { la= 0.30; lb=-0.30; aa= 0.28; ab= 0.14; }   // falling: legs reach for ground
+  }else{
+    const sp=Math.sin(phase);
+    la= sp*0.62; lb=-sp*0.62;      // legs alternate
+    aa=-sp*0.50; ab= sp*0.50;      // arms counter-swing against the legs
+  }
+  // legs -------------------------------------------------------------------
+  const l1=REST_LEG+la, l2=-REST_LEG+lb;
+  L(0,hip, Math.sin(l1)*legLen, hip+Math.cos(l1)*legLen);
+  L(0,hip, Math.sin(l2)*legLen, hip+Math.cos(l2)*legLen);
+  // torso ------------------------------------------------------------------
+  L(0,hip,0,headY+HEAD_R-0.4);
+  // arms -------------------------------------------------------------------
+  const a1=REST_ARM+aa, a2=-REST_ARM+ab;
+  L(0,sh, Math.sin(a1)*armLen, sh+Math.cos(a1)*armLen*0.80);
+  L(0,sh, Math.sin(a2)*armLen, sh+Math.cos(a2)*armLen*0.80);
+  // head -------------------------------------------------------------------
+  ctx.beginPath(); ctx.arc(0,headY,HEAD_R,0,7); ctx.fillStyle="#f3ead6"; ctx.fill(); ctx.stroke();
+  // face -------------------------------------------------------------------
+  ctx.fillStyle="#241c14";
+  ctx.beginPath(); ctx.arc(-1.9,headY-1.1,0.78,0,7); ctx.fill();
+  ctx.beginPath(); ctx.arc( 2.2,headY-1.1,0.78,0,7); ctx.fill();
+  setInk("#241c14",1.05);
+  L(0.4,headY-0.3,0.4,headY+1.0);                                            // nose
+  ctx.beginPath(); ctx.arc(0.2,headY+1.2,2.2,0.3,Math.PI-0.3); ctx.stroke(); // smile
+  // hat: brim rests ON TOP of the skull, never across the face -------------
+  const hy=headY-HEAD_R+0.3;
+  setInk("#c4552a",2.5);
+  ctx.beginPath();
+  ctx.moveTo(-9.8,hy-0.4);
+  ctx.quadraticCurveTo(-5.0,hy+2.3, 0.9,hy+1.9);
+  ctx.quadraticCurveTo( 6.4,hy+1.5, 10.0,hy-1.1);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(-9.8,hy-0.4);
+  ctx.quadraticCurveTo(-4.2,hy-2.1, 1.4,hy-2.1);
+  ctx.quadraticCurveTo( 6.4,hy-2.1, 10.0,hy-1.1);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(-5.1,hy-1.9);
+  ctx.quadraticCurveTo(-5.8,hy-5.6, -2.4,hy-6.5);
+  ctx.quadraticCurveTo( 1.8,hy-7.3,  4.4,hy-5.6);
+  ctx.quadraticCurveTo( 5.8,hy-4.6,  5.5,hy-2.1);
+  ctx.stroke();
+  setInk("#c4552a",1.4);
+  ctx.beginPath();
+  ctx.moveTo(-4.9,hy-2.8); ctx.quadraticCurveTo(0,hy-1.8,5.3,hy-3.0); ctx.stroke();
+  ctx.restore();
+}
+
+/* --- demons -------------------------------------------------------------- */
+function drawFoe(f){
+  const x=f.x, y=f.y, s=f.small?0.72:1, wob=Math.sin(G.t*8+f.seed)*1.6;
+  ctx.save(); ctx.translate(x,y); ctx.scale(s,s);
+  setInk("#a5321f",2.3);
+  if(f.kind==="anx"){
+    ctx.save(); ctx.translate(wob*0.6,-wob*0.5);
+    ctx.beginPath();
+    ctx.moveTo(-9,0); ctx.quadraticCurveTo(-11,-14,-6,-18);
+    ctx.quadraticCurveTo(0,-22,6,-18); ctx.quadraticCurveTo(11,-14,9,0);
+    ctx.closePath(); ctx.fillStyle="rgba(165,50,31,.13)"; ctx.fill(); ctx.stroke();
+    setInk("#a5321f",1.7);
+    L(-5,-13,-1.6,-10.4); L(5,-13,1.6,-10.4);
+    ctx.beginPath(); ctx.arc(0,-4.5,3.1,Math.PI+0.3,-0.3); ctx.stroke();
+    L(-11,-19,-15,-23); L(11,-19,15,-23); L(0,-22,0,-27);
+    ctx.restore();
+  }else if(f.kind==="dbt"){
+    ctx.globalAlpha=.75;
+    ctx.beginPath(); ctx.arc(0,-15,5.6,0,7); ctx.fillStyle="rgba(165,50,31,.10)"; ctx.fill(); ctx.stroke();
+    L(0,-9.4,0,-3); L(0,-3,-4.5,3); L(0,-3,4.5,3); L(0,-7.5,-5,-4.5); L(0,-7.5,5,-4.5);
+    setInk("#a5321f",1.6);
+    L(-2.4,-16.4,-0.8,-15.2); L(2.4,-16.4,0.8,-15.2);
+    ctx.beginPath(); ctx.arc(0,-12.4,2.2,Math.PI+0.35,-0.35); ctx.stroke();
+    ctx.globalAlpha=1; ctx.fillStyle="#a5321f"; ctx.font="bold 9px ui-monospace,monospace";
+    ctx.textAlign="center"; ctx.fillText("?",0,-23+wob*0.4);
+  }else{
+    ctx.beginPath(); ctx.ellipse(1,1,11,2.6,0,0,7); ctx.fillStyle="rgba(165,50,31,.20)"; ctx.fill();
+    ctx.beginPath(); ctx.arc(0,-13,4.8,0,7); ctx.fillStyle="rgba(165,50,31,.10)"; ctx.fill(); ctx.stroke();
+    L(0,-8.2,0,-3); L(0,-3,-3.6,2.4); L(0,-3,3.6,2.4);
+    L(0,-6.8,-4.2,-3.4); L(0,-6.8,4.2,-3.4);
+    setInk("#a5321f",1.5);
+    ctx.beginPath(); ctx.arc(0,-11.2,2.4,0.35,Math.PI-0.35); ctx.stroke();   // frown
+    L(-2.0,-14.6,-0.7,-13.6); L(2.0,-14.6,0.7,-13.6);
+  }
+  ctx.restore();
+}
+
+/* --- scenery ------------------------------------------------------------- */
+function drawDeco(kind,x,gy){
+  ctx.save(); ctx.translate(x,gy); setInk("#6b5843",2.2);
+  if(kind==="cactus"){ L(0,0,0,-26); L(0,-16,-7,-16); L(-7,-16,-7,-21); L(0,-20,6,-20); L(6,-20,6,-25); }
+  if(kind==="skull"){ ctx.beginPath();ctx.arc(0,-6,5,0,7);ctx.stroke();
+    ctx.fillStyle="#6b5843";ctx.beginPath();ctx.arc(-1.9,-6.6,1.1,0,7);ctx.fill();
+    ctx.beginPath();ctx.arc(1.9,-6.6,1.1,0,7);ctx.fill(); L(-6,-9,-10,-13); L(6,-9,10,-13); }
+  if(kind==="tree"){ L(0,0,0,-16); L(0,-10,-6,-17); L(0,-12,6,-19); L(0,-6,-5,-11); }
+  if(kind==="bed"){ L(-11,0,-11,-8); L(11,0,11,-6); L(-11,-8,11,-8); L(-11,-4,11,-4); }
+  if(kind==="scope"){ ctx.strokeRect(-9,-14,18,13);
+    setInk("#a5321f",1.6); ctx.beginPath(); ctx.moveTo(-6,-7);
+    for(let i=-6;i<=6;i+=1.5)ctx.lineTo(i,-7-Math.sin(i*1.1)*3.4); ctx.stroke(); }
+  ctx.restore();
+}
+function drawBack(kind,cam){
+  const h=VH;
+  ctx.save();
+  // sun
+  setInk("#c4552a",2); ctx.beginPath(); ctx.arc(VW-64,44,17,0,7); ctx.stroke();
+  // parallax hills
+  const off=-cam*0.25;
+  setInk("#c9b894",2.2);
+  ctx.beginPath(); ctx.moveTo(-20,190);
+  for(let i=0;i<9;i++){ const bx=off%320+i*140-160; ctx.lineTo(bx+70, 150-(i%3)*16); ctx.lineTo(bx+140,190); }
+  ctx.stroke();
+  if(kind==="town"||kind==="lab"){
+    const o2=-cam*0.45; setInk("#bfae8a",2);
+    for(let i=0;i<8;i++){ const bx=(o2%420)+i*150-200, bh=44+(i%3)*16;
+      ctx.strokeRect(bx,190-bh,74,bh); L(bx-5,190-bh,bx+37,190-bh-14); L(bx+37,190-bh-14,bx+79,190-bh); }
+  }
+  if(kind==="ridge"){ const o3=-cam*0.35; setInk("#c0ac86",2.4);
+    ctx.beginPath(); ctx.moveTo(-40,196);
+    for(let i=0;i<7;i++){const bx=(o3%460)+i*200-220; ctx.lineTo(bx+95,110+(i%2)*22); ctx.lineTo(bx+200,196);} ctx.stroke(); }
+  ctx.restore();
+}
+
+/* ==================================================================== level */
+function loadLevel(i){
+  G.li=i; const L0=LEVELS[i]; G.lvl=L0; G.goalHit=false; G.cam=0; G.boss=null;
+  P.x=L0.spawn[0]; P.y=L0.spawn[1]; P.safeX=L0.spawn[0]; P.safeY=L0.spawn[1]; P.vx=0; P.vy=0; P.alive=true; P.hurt=0; P.phase=0; P.face=1;
+  G.foes=(L0.foes||[]).map((f,n)=>({x:f[0],y:f[1],kind:f[2],home:f[0],range:f[3],dir:n%2?1:-1,
+                                    dead:0,seed:n*1.7,small:false,vy:0}));
+  G.gems=(L0.gems||[]).map(g=>({x:g[0],y:g[1],ci:g[2],got:false}));
+  G.signs=(L0.signs||[]).map(s=>({x:s[0],y:s[1],t:s[2]}));
+  el("lvl").textContent=L0.name;
+  if(L0.boss) G.boss={stage:0,hp:0,foes:[],done:false,started:false};
+  showCard(L0.name,L0.sub,L0.intro,"Ride",()=>{G.mode="play";});
+}
+function levelGoalX(){return G.lvl.goal;}
+
+/* ================================================================ overlays */
+function showCard(title,sub,body,btn,fn,btn2,fn2){
+  G.mode="card";
+  card.innerHTML=`<h2>${title}</h2><div class="sub">${sub}</div>`+
+    body.split("\n").map(p=>`<p>${p}</p>`).join("")+
+    `<div class="keys">${isTouch?"Use the buttons at the bottom.":"← → or A D to move · ↑ / W / Space to jump · Enter to continue"}</div>`;
+  const b=document.createElement("button"); b.className="btn go"; b.textContent=btn;
+  b.onclick=()=>{ov.classList.remove("on"); fn&&fn();}; card.appendChild(b);
+  if(btn2){const b2=document.createElement("button");b2.className="btn";b2.textContent=btn2;
+    b2.onclick=()=>{ov.classList.remove("on"); fn2&&fn2();}; card.appendChild(b2);}
+  ov.classList.add("on");
+}
+let toastT=0;
+function toast(head,body){ toastEl.innerHTML=`<b>${head}</b>${body}`; toastEl.classList.add("on"); toastT=3.2; }
+
+/* ================================================================== physics */
+const GRAV=1750, RUN=205, AIR=0.86, JUMP=-530, MAXFALL=520;
+// airtime 2*530/1750 = 0.606s -> max jump span ~124 world units.
+// Every gap below is 60, so a mistimed jump still clears.
+function rectHit(a,b){return a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y;}
+
+function step(dt){
+  const Lv=G.lvl;
+  // ---- horizontal ----
+  const dir=(K.right?1:0)-(K.left?1:0);
+  if(dir) P.face=dir;
+  P.vx += (dir*RUN - P.vx) * (P.onGround?0.30:0.12);
+  if(!dir) P.vx *= P.onGround?0.72:AIR;
+  P.x += P.vx*dt;
+  // Keep the player inside the level. Without this you can sprint past the boss
+  // arena and off the right-hand end of the world, falling forever.
+  if(P.x<0){P.x=0;P.vx=0;}
+  if(P.x>Lv.len-P.w){P.x=Lv.len-P.w;P.vx=0;}
+  collide(0);
+  // ---- vertical ----
+  const prevBottom = P.y + P.h;          // needed for one-way platform logic
+  P.vy=Math.min(MAXFALL,P.vy+GRAV*dt);
+  P.y += P.vy*dt;
+  P.onGround=false;
+  collide(1,prevBottom);
+  // ---- jump w/ coyote + buffer ----
+  P.coyote = P.onGround?0.09:Math.max(0,P.coyote-dt);
+  if(K.jumpPressed){P.buffer=0.13; K.jumpPressed=false;}
+  P.buffer=Math.max(0,P.buffer-dt);
+  if(P.buffer>0 && P.coyote>0){ P.vy=JUMP; P.buffer=0; P.coyote=0; P.onGround=false; }
+  if(!K.jump && P.vy<-150) P.vy=-150;          // variable jump height
+  // ---- animation phase ----
+  if(P.onGround && Math.abs(P.vx)>14) P.phase += Math.abs(P.vx)*dt*0.10;
+  else if(P.onGround) P.phase += (0 - (P.phase%(Math.PI*2)))*0.0;
+  // ---- fell off the world ----
+  if(P.y>DEATH_Y) hurt(true);
+  // ---- foes ----
+  G.foes.forEach(f=>{
+    if(f.dead){ f.dead+=dt; return; }
+    if(f.kind==="anx"){ f.x += f.dir*38*dt; f.y = 196 + Math.sin(G.t*3+f.seed)*13; }
+    else f.x += f.dir*(f.kind==="dbt"?44:30)*dt;
+    if(Math.abs(f.x-f.home)>f.range) f.dir*=-1;
+    const fb={x:f.x-9,y:f.y-20,w:18,h:20}, pb=pbox();
+    if(rectHit(pb,fb)){
+      if(P.vy>60 && P.y+P.h < f.y-6){                       // stomped: feet clearly above
+        f.dead=0.001; P.vy=-300; G.shake=0.18;
+        toast(f.kind==="anx"?"Anxiety":f.kind==="dbt"?"Self-Doubt":"Insecurity","quieter now.");
+      } else hurt(false);
+    }
+  });
+  G.foes=G.foes.filter(f=>f.dead<0.5);
+  // ---- gems ----
+  G.gems.forEach(g=>{
+    if(g.got)return;
+    if(rectHit(pbox(),{x:g.x-8,y:g.y-8,w:16,h:16})){
+      g.got=true;
+      if(!G.codes.includes(g.ci)){G.codes.push(g.ci); el("hcode").textContent=G.codes.length;}
+      toast("Code of the West · "+CODES[g.ci][0], CODES[g.ci][1]);
+    }
+  });
+  // ---- signs ----
+  let near=null;
+  G.signs.forEach(s=>{ if(Math.abs(s.x-(P.x+P.w/2))<58) near=s; });
+  if(near){ bub.textContent=near.t; bub.classList.add("on");
+    const r=cv.getBoundingClientRect(), sx=(near.x-G.cam)*(r.width/VW), sy=(near.y-34)*(r.height/VH);
+    bub.style.left=Math.max(90,Math.min(r.width-90,sx))+"px"; bub.style.top=Math.max(40,sy)+"px";
+  } else bub.classList.remove("on");
+  // ---- boss ----
+  if(Lv.boss) bossStep(dt);
+  // ---- goal ----
+  if(!G.goalHit && P.x>levelGoalX()){
+    if(!Lv.boss || (G.boss&&G.boss.done)) finishLevel();
+    else if(G.boss && G.boss.started && toastT<=0)
+      toast("Not yet","All three are still standing. Come down on top of them.");
+  }
+  // ---- camera ----
+  const want=Math.max(0,Math.min(Lv.len-VW, P.x-VW*0.40));
+  G.cam += (want-G.cam)*Math.min(1,dt*7);
+  if(G.shake>0)G.shake=Math.max(0,G.shake-dt);
+  if(toastT>0){toastT-=dt; if(toastT<=0)toastEl.classList.remove("on");}
+}
+function pbox(){return {x:P.x,y:P.y,w:P.w,h:P.h};}
+function collide(axis,prevBottom){
+  const ps=G.lvl.plats;
+  for(let i=0;i<ps.length;i++){
+    const p={x:ps[i][0],y:ps[i][1],w:ps[i][2],h:ps[i][3]};
+    // Thin ledges are one-way: you rise through them and land on top. Solid
+    // ground (h=40) blocks from every side. Without this, a ledge hanging over
+    // a pit lets you crack your head on its underside mid-jump, which kills all
+    // upward momentum and drops you straight down the hole.
+    const oneWay = p.h<=14;
+    if(axis===0 && oneWay) continue;              // never block sideways
+    if(!rectHit(pbox(),p)) continue;
+    if(axis===0){ P.x = P.vx>0 ? p.x-P.w : p.x+p.w; P.vx=0; }
+    else if(oneWay){
+      if(P.vy<=0) continue;                       // rising: pass straight through
+      if(prevBottom>p.y+2) continue;              // already level with or below it
+      P.y=p.y-P.h; P.onGround=true; P.vy=0;
+    }else{
+      if(P.vy>0){ P.y=p.y-P.h; P.onGround=true; P.safeX=P.x; P.safeY=p.y-P.h-2; }
+      else { P.y=p.y+p.h; }
+      P.vy=0;
+    }
+  }
+}
+function hurt(fell){
+  if(P.hurt>0 && !fell) return;
+  G.lives--; el("hlife").textContent=Math.max(0,G.lives); G.shake=0.3; P.hurt=1.2;
+  if(G.lives<=0){ G.mode="card";
+    showCard("Winded","You get put down in the dirt","It happens. It is not a moral event, though they will try to bill it as one.\nYour health matters more than your beliefs. Rest is a legal move.",
+      "Get up",()=>{G.lives=3;el("hlife").textContent=3;loadLevel(G.li);});
+    return;
+  }
+  if(fell){
+    // Falling used to nudge you back 46px — often still over the same pit, which
+    // drained all three lives in one go. Put the player back on the last tile
+    // they actually stood on instead.
+    P.x=P.safeX; P.y=P.safeY;
+  }else{
+    // Deliberately NO horizontal knockback. Pushing the player back on a hit
+    // could drop them straight into the pit they had just cleared, costing
+    // every remaining life in about two seconds. A small hop plus the 1.2s of
+    // invulnerability above is enough to break contact.
+    P.y-=8;
+  }
+  P.vy=-190; P.vx=0;
+}
+/* --------------------------------------------------------------- boss ----- */
+function bossStep(dt){
+  const B=G.boss;
+  if(B.done) return;
+  if(!B.started && P.x>1480){
+    B.started=true;
+    B.foes=[{kind:"anx",x:1720,y:196,dir:1,seed:1,hp:2,small:false,dead:0,home:1720,range:150},
+            {kind:"dbt",x:1900,y:210,dir:-1,seed:2,hp:2,small:false,dead:0,home:1900,range:170},
+            {kind:"ins",x:2020,y:210,dir:1,seed:3,hp:2,small:false,dead:0,home:2020,range:140}];
+    toast("The Last Ride","All three of them. Stomp each twice.");
+  }
+  if(!B.started) return;
+  B.foes.forEach(f=>{
+    if(f.hp<=0) return;
+    const sp=f.kind==="anx"?58:f.kind==="dbt"?48:40;
+    f.x += f.dir*sp*dt;
+    if(f.kind==="anx") f.y=194+Math.sin(G.t*3.4+f.seed)*16;
+    if(Math.abs(f.x-f.home)>f.range) f.dir*=-1;
+    const fb={x:f.x-9,y:f.y-20,w:18,h:20};
+    if(rectHit(pbox(),fb)){
+      if(P.vy>60 && P.y+P.h<f.y-6){ f.hp--; P.vy=-320; G.shake=.22; f.small=true;
+        toast(f.kind==="anx"?"Anxiety":f.kind==="dbt"?"Self-Doubt":"Insecurity", f.hp<=0?"sits down a respectful distance back.":"gets smaller. Not gone. Smaller."); }
+      else hurt(false);
+    }
+  });
+  if(B.foes.every(f=>f.hp<=0)) B.done=true;
+}
+function finishLevel(){
+  G.goalHit=true; G.mode="card";
+  const last = G.li>=LEVELS.length-1;
+  if(last){
+    const pct=Math.round(G.codes.length/CODES.length*100);
+    showCard("Eight Seconds","Case GJ-17 · closed, pending revision",
+      `They are still here. Smaller. Quieter. Riding behind you instead of in front.\nNobody kills Anxiety. Nobody retires Self-Doubt. You just get far enough ahead.\nCode of the West recovered: ${G.codes.length} of ${CODES.length} (${pct}%).`,
+      "Ride again",()=>{G.lives=3;G.codes=[];el("hcode").textContent=0;el("hlife").textContent=3;loadLevel(0);},
+      "The full case file",()=>{location.href="../digital/";});
+  }else{
+    showCard("Cleared","“"+G.lvl.name+"”",
+      "That one is squared away. The road keeps going.",
+      "Next",()=>loadLevel(G.li+1));
+  }
+}
+
+/* =================================================================== render */
+function render(){
+  const Lv=G.lvl;
+  ctx.setTransform(SC*1,0,0,SC*1,0,0);
+  ctx.clearRect(0,0,VW,VH);
+  ctx.fillStyle=Lv.sky||"#e9ddc2"; ctx.fillRect(0,0,VW,VH);
+  drawBack(Lv.far,G.cam);
+  const shx=G.shake>0?(Math.random()-0.5)*4*G.shake/0.3:0;
+  const shy=G.shake>0?(Math.random()-0.5)*4*G.shake/0.3:0;
+  ctx.save(); ctx.translate(-G.cam+shx,-CAMY+shy);
+  // platforms
+  (Lv.plats||[]).forEach(p=>{
+    if(p[0]+p[2]<G.cam-40||p[0]>G.cam+VW+40)return;
+    // Solid ground is filled all the way down to the bottom of the view so the
+    // gaps between segments read as real holes rather than shallow steps.
+    const deep = p[3]>14 ? (CAMY+VH)-p[1]+8 : p[3];
+    ctx.fillStyle="#d8c8a4"; ctx.fillRect(p[0],p[1],p[2],deep);
+    setInk("#241c14",2.4);
+    ctx.beginPath(); ctx.moveTo(p[0],p[1]); ctx.lineTo(p[0]+p[2],p[1]); ctx.stroke();
+    setInk("#b9a47c",1.6);
+    for(let i=p[0]+10;i<p[0]+p[2];i+=22) L(i,p[1]+3,i-5,p[1]+Math.min(deep,34));
+  });
+  // deco
+  (Lv.deco||[]).forEach(d=>{ if(d[0]>G.cam-60&&d[0]<G.cam+VW+60) drawDeco(d[1],d[0],210); });
+  // signs (posts)
+  G.signs.forEach(s=>{ if(s.x<G.cam-40||s.x>G.cam+VW+40)return;
+    setInk("#6b5843",2.2); L(s.x,s.y+32,s.x,s.y+8);
+    ctx.fillStyle="#d8c8a4"; ctx.fillRect(s.x-9,s.y-2,18,11);
+    ctx.strokeRect(s.x-9,s.y-2,18,11);
+    ctx.fillStyle="#6b5843"; ctx.font="7px ui-monospace,monospace"; ctx.textAlign="center";
+    ctx.fillText("?",s.x,s.y+6.5); });
+  // gems = code cards
+  G.gems.forEach(g=>{ if(g.got||g.x<G.cam-40||g.x>G.cam+VW+40)return;
+    const b=Math.sin(G.t*4+g.x)*2;
+    ctx.save(); ctx.translate(g.x,g.y+b);
+    ctx.fillStyle="#f3ead6"; ctx.fillRect(-7,-9,14,18);
+    setInk("#c4552a",2); ctx.strokeRect(-7,-9,14,18);
+    setInk("#c4552a",1.2); L(-4,-4,4,-4); L(-4,0,4,0); L(-4,4,1,4);
+    ctx.restore(); });
+  // foes
+  G.foes.forEach(f=>{ if(f.dead){ctx.save();ctx.globalAlpha=Math.max(0,1-f.dead*2.4);
+      ctx.translate(0,-f.dead*40);drawFoe(f);ctx.restore();} else drawFoe(f); });
+  if(G.boss&&G.boss.started) G.boss.foes.forEach(f=>{ if(f.hp>0) drawFoe(f);
+    else { ctx.save(); ctx.globalAlpha=.4; f.small=true; drawFoe(f); ctx.restore(); } });
+  // goal flag
+  const gx=levelGoalX();
+  if(gx>G.cam-40&&gx<G.cam+VW+40){
+    setInk("#241c14",2.4); L(gx,210,gx,150);
+    ctx.fillStyle="#c4552a"; ctx.beginPath();
+    ctx.moveTo(gx,150); ctx.lineTo(gx+26,158); ctx.lineTo(gx,168); ctx.closePath(); ctx.fill();
+  }
+  // player
+  if(!(P.hurt>0 && Math.floor(G.t*18)%2)) drawD(P.x+P.w/2,P.y+P.h,P.phase,P.onGround,P.vy,P.face,false);
+  ctx.restore();
+}
+
+/* ===================================================================== loop */
+let last=0;
+function frame(ts){
+  if(!last)last=ts;
+  let dt=(ts-last)/1000; last=ts; dt=Math.min(dt,1/30);
+  G.t+=dt;
+  // A throw inside step/render would otherwise stop rAF being re-scheduled and
+  // freeze the whole game on a silent error. Never let one bad frame do that.
+  try{
+    if(G.mode==="play"){ step(dt); if(P.hurt>0)P.hurt-=dt; }
+    if(G.lvl) render();
+  }catch(err){ if(window.console)console.error("frame error",err); }
+  requestAnimationFrame(frame);
+}
+
+/* ===================================================================== boot */
+function title(){
+  G.lvl=LEVELS[0]; G.mode="card"; resize();
+  showCard("The Bullrider's<br>Last Ride","A stick-figure western · Case GJ-17",
+    "D! is a seventh-generation cowboy and the last one in his family. He left home at twelve.\nThree demons rode out with him. You cannot kill them — but you can get far enough ahead that they ride behind.",
+    "Start",()=>loadLevel(0));
+}
+resize(); title(); requestAnimationFrame(frame);
+</script>
+</body>
+</html>
