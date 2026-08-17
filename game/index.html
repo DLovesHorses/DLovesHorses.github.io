@@ -65,6 +65,11 @@ canvas{display:block;width:100%;height:100%;image-rendering:auto}
 #card h2{margin:0 0 .05em;font-size:clamp(1.55rem,4.6vw,2.45rem);letter-spacing:.02em;font-weight:400}
 #card .sub{color:var(--rust);font-size:clamp(.88rem,2.3vw,1.12rem);letter-spacing:.16em;text-transform:uppercase;margin-bottom:.6em}
 #card p{font-family:var(--ui);font-size:clamp(1.16rem,2.9vw,1.42rem);line-height:1.34;margin:.3em 0}
+/* This face has one weight only. <b> gets a synthesised smear that fills in the
+   counters and is genuinely hard to read, so emphasis is carried by colour
+   instead — rust for the line that matters. Nothing in here is ever bold. */
+#card p.mis{color:var(--rust);letter-spacing:.03em;margin-top:.5em}
+#card p b,#card p strong,#toast b{font-weight:400}
 #card .keys{font-size:clamp(.88rem,2.2vw,1.1rem);color:var(--soft);margin-top:.6em;line-height:1.5}
 .btn{font-family:var(--ui);font-size:clamp(1.02rem,2.6vw,1.26rem);letter-spacing:.08em;text-transform:uppercase;
      background:var(--paper);border:3px solid var(--ink);padding:.5em 1.05em;margin:.65em .25em 0;cursor:pointer;
@@ -94,6 +99,16 @@ canvas{display:block;width:100%;height:100%;image-rendering:auto}
       display:grid;place-items:center;font-size:clamp(20px,6vw,32px);touch-action:none}
 .pbtn:active,.pbtn.hit{background:rgba(196,85,42,.75);color:#fff}
 .padL,.padR{display:flex;gap:.7rem}
+/* Dismount sits in the gap the two thumb clusters leave in the middle, and only
+   while there is a horse to get off — no reason to spend a button on it
+   otherwise, and no room on a phone either. */
+#pdown{display:none;flex:0 0 auto}      /* flex would otherwise squash it */
+#pad.mount #pdown{display:grid}
+/* Five buttons will not fit a narrow phone at the four-button size, so the
+   whole row tightens for as long as the dismount button is out. */
+#pad.mount{padding-left:2.5%;padding-right:2.5%}
+#pad.mount .pbtn{width:min(15.5vw,72px);height:min(15.5vw,72px);font-size:clamp(18px,5.2vw,28px)}
+#pdown{border-color:rgba(196,85,42,.75);color:#e9ddc2}
 </style>
 </head>
 <body>
@@ -113,6 +128,7 @@ canvas{display:block;width:100%;height:100%;image-rendering:auto}
   </div>
   <div id="pad">
     <div class="padL"><div class="pbtn" id="pleft">◀</div><div class="pbtn" id="pright">▶</div></div>
+    <div class="pbtn" id="pdown" title="step off the horse">▼</div>
     <div class="padR"><div class="pbtn" id="plasso">➰</div><div class="pbtn" id="pjump">▲</div></div>
   </div>
 </div>
@@ -329,14 +345,17 @@ const BULL =loadSprite("bull.png", true, null,INK_ART,LEGS_BULL);  // scan faces
 const COW  =loadSprite("cow.png",  false,null,INK_ART,LEGS_COW);
 
 /* ==================================================================== input */
-const K={left:false,right:false,jump:false,jumpPressed:false,lasso:false,lassoPressed:false};
+const K={left:false,right:false,jump:false,jumpPressed:false,lasso:false,lassoPressed:false,
+         down:false,downPressed:false};
 const keymap={ArrowLeft:"left",KeyA:"left",ArrowRight:"right",KeyD:"right",
-              ArrowUp:"jump",KeyW:"jump",Space:"lasso",KeyJ:"lasso"};
+              ArrowUp:"jump",KeyW:"jump",Space:"lasso",KeyJ:"lasso",
+              ArrowDown:"down",KeyS:"down"};
 addEventListener("keydown",e=>{
   const k=keymap[e.code];
   if(k){
     if(k==="jump"&&!K.jump)K.jumpPressed=true;
     if(k==="lasso"&&!K.lasso)K.lassoPressed=true;
+    if(k==="down"&&!K.down)K.downPressed=true;
     K[k]=true; e.preventDefault();
   }
   if(e.code==="Escape" && !ov.classList.contains("on")){ askExit(); return; }
@@ -355,6 +374,7 @@ function bindPad(id,key){
   const on=e=>{e.preventDefault();
     if(key==="jump"&&!K.jump)K.jumpPressed=true;
     if(key==="lasso"&&!K.lasso)K.lassoPressed=true;
+    if(key==="down"&&!K.down)K.downPressed=true;
     K[key]=true; b.classList.add("hit");};
   const off=e=>{e.preventDefault(); K[key]=false; b.classList.remove("hit");};
   b.addEventListener("touchstart",on,{passive:false}); b.addEventListener("touchend",off,{passive:false});
@@ -362,6 +382,7 @@ function bindPad(id,key){
   b.addEventListener("mousedown",on); addEventListener("mouseup",off);
 }
 bindPad("pleft","left"); bindPad("pright","right"); bindPad("pjump","jump"); bindPad("plasso","lasso");
+bindPad("pdown","down");
 
 /* ============================================================ code of west */
 const CODES=[
@@ -388,8 +409,12 @@ el("hcodemax").textContent=CODES.length;
 function ground(x,w,y){return [x,y,w,40];}
 const LEVELS=[
 { id:"desert", name:"The Salt Desert", sub:"Age twelve. One hat, one dog, no plan.",
-  intro:"You are twelve. Behind you is home; ahead is everything else.\nSelf-Doubt you can jump on. Anxiety hovers and Insecurity is all edges — for those two, use the rope.\nRope a horse to ride it. Rope a cow to get your grit back. Rope a bull and stand well clear.",
+  intro:"You are twelve. Behind you is home; ahead is everything else.\nA dust devil paces the flats past the second gap. It will pick you up and put you down wrong.\nSelf-Doubt you can jump on. Anxiety hovers and Insecurity is all edges — for those two, use the rope.\nRope a horse to ride it. Rope a cow to get your grit back. Rope a bull and stand well clear.",
   sky:"#e9ddc2", far:"dune", len:2700, spawn:[40,150],
+  // ["hill",centre,halfWidth,height] · ["water",centre,halfWidth,depth]
+  terra:[["hill",250,120,30],["hill",860,70,22],["hill",1650,60,26],
+         ["water",2045,95,34],["hill",2620,70,26]],
+  tors:[[1060,70,52]],
   plats:[ground(0,700,210),ground(760,420,210),ground(1240,480,210),ground(1780,460,210),ground(2300,400,210),
          [520,158,70,12],[640,118,60,12],[980,150,70,12],[1420,155,70,12],[1540,115,60,12],[1900,150,70,12],[2380,150,70,12],[2500,110,70,12]],
   movs:[],
@@ -402,8 +427,11 @@ const LEVELS=[
   goal:2640 },
 
 { id:"motel", name:"The Long Night Inn", sub:"Thunder Bay, 2021. Twenty-three rooms a day.",
-  intro:"The job is cleaning rooms. Not technical. Intense, which is a different and less respected thing.\nThe lift moves on its own. So does everything else here.",
+  intro:"The job is cleaning rooms. Not technical. Intense, which is a different and less respected thing.\nThe lift moves on its own. So does the weather in the lot, and the river behind it.",
   sky:"#ded0b2", far:"town", len:2500, spawn:[40,150],
+  terra:[["hill",200,105,28],["hill",760,70,24],["water",1300,72,30],
+         ["hill",1620,60,22],["hill",2410,60,20]],
+  tors:[[1130,60,48]],
   plats:[ground(0,560,210),ground(620,380,210),ground(1060,420,210),ground(1540,380,210),ground(1980,520,210),
          [430,158,70,12],[560,118,60,12],[900,150,70,12],[1180,150,60,12],[1420,110,70,12],[1700,150,70,12],[1830,112,60,12],[2100,150,70,12],[2260,112,70,12]],
   movs:[[1300,150,64,12,0,1,40,1.1]],
@@ -416,8 +444,10 @@ const LEVELS=[
   goal:2440 },
 
 { id:"lab", name:"The Lab", sub:"uOttawa. Twenty-three amps, looking for somewhere to be.",
-  intro:"Hot flux and undergraduate panic. \u201cIt was working yesterday.\u201d It was not working yesterday.\nInsecurity is thick in here. Keep the rope moving.",
+  intro:"Hot flux and undergraduate panic. \u201cIt was working yesterday.\u201d It was not working yesterday.\nSomething in the middle of this room vents every few seconds. Watch the crater, count, then move.\nInsecurity is thick in here. Keep the rope moving.",
   sky:"#e4d8bd", far:"lab", len:2700, spawn:[40,150],
+  terra:[["hill",230,120,32],["hill",700,60,24],["volc",1160,95,56],
+         ["water",1570,75,32],["hill",2100,55,20],["hill",2580,80,28]],
   plats:[ground(0,520,210),ground(580,340,210),ground(980,360,210),ground(1400,340,210),ground(1800,360,210),ground(2220,480,210),
          [420,155,60,12],[880,150,70,12],[1250,150,60,12],[1330,110,60,12],[1900,150,70,12],[2020,112,60,12],[2320,150,70,12],[2450,110,70,12]],
   movs:[[700,140,64,12,0,1,42,1.2],[1560,150,64,12,1,0,70,0.9]],
@@ -430,8 +460,11 @@ const LEVELS=[
   goal:2640 },
 
 { id:"garden", name:"Hope & Memory Garden", sub:"Every plant here is somebody.",
-  intro:"A garden for people who died of cancer. Nobody says it out loud; everybody weeds like they know.\nAnxiety is everywhere in this one. Rope is the only answer.",
+  intro:"A garden for people who died of cancer. Nobody says it out loud; everybody weeds like they know.\nAnxiety is everywhere in this one. Rope is the only answer — and mind the wind past the water.",
   sky:"#e7dfc4", far:"garden", len:2560, spawn:[40,150],
+  terra:[["hill",240,120,30],["hill",800,70,26],["water",1360,85,32],
+         ["hill",1750,70,24],["hill",2185,90,26]],
+  tors:[[1720,60,46]],
   plats:[ground(0,600,210),ground(660,420,210),ground(1140,400,210),ground(1600,380,210),ground(2040,520,210),
          [470,150,70,12],[600,110,70,12],[1060,150,70,12],[1500,150,60,12],[1620,110,60,12],[1900,155,70,12],[2280,150,70,12],[2400,108,70,12]],
   movs:[[1000,150,64,12,1,0,80,1.0]],
@@ -444,8 +477,12 @@ const LEVELS=[
   goal:2500 },
 
 { id:"ridge", name:"ambiBull Ridge", sub:"The last ride. All three of them.",
-  intro:"They have ridden with you since the salt desert and never missed a day.\nAnxiety and Insecurity take two ropings each. Self-Doubt you can still stomp.",
+  intro:"They have ridden with you since the salt desert and never missed a day.\nThe ridge is still cooling. Cross it while the crater is quiet; the arena beyond it is level ground.\nAnxiety and Insecurity take two ropings each. Self-Doubt you can still stomp.",
   sky:"#dfd0ae", far:"ridge", len:2240, spawn:[40,150], boss:true,
+  // The boss arena (1420 on) stays level — three rounds of rope work needs
+  // footing you can trust. Only the run-up rolls, and the flag sits on a rise.
+  terra:[["hill",230,110,30],["water",780,80,32],["hill",905,50,24],
+         ["volc",1190,90,60],["hill",2140,85,22]],
   plats:[ground(0,540,210),ground(600,360,210),ground(1020,340,210),ground(1420,820,210),
          [430,150,70,12],[560,112,60,12],[980,150,60,12],[1340,150,70,12],[1560,140,80,12],[1780,110,80,12],[1980,140,80,12]],
   movs:[[800,140,64,12,0,1,44,1.15]],
@@ -464,7 +501,7 @@ const G={
   cam:0, shake:0, boss:null, goalHit:false, movs:[], plats:[], roped:0, pals:[], charge:null, foeTotal:0,
   // these must exist before the first render(): the title card draws a level
   // backdrop before loadLevel() has built any entities.
-  foes:[], gems:[], signs:[], dust:[]
+  foes:[], gems:[], signs:[], dust:[], emb:[], volcs:[], tors:[]
 };
 const P={x:40,y:150,vx:0,vy:0,w:16,h:30,onGround:false,face:1,phase:0,coyote:0,buffer:0,hurt:0,alive:true,safeX:40,safeY:150,ride:null,la:{st:0,t:0,len:0,tgt:null,cool:0}};
 
@@ -739,7 +776,8 @@ function drawRider(x,y,face){
   // Seat measured off the sprite: the back line sits ~48% down the image and
   // just behind its middle. HORSE.cv missing -> the drawn horse, whose back
   // is at -26, so the offset shifts with it.
-  ctx.save(); HORSE.cv ? ctx.translate(-11,-25) : ctx.translate(-1,-26); ctx.scale(0.82,0.82);
+  const r=rideOff();
+  ctx.save(); ctx.translate(r.dx,r.dy); ctx.scale(RIDE_S,RIDE_S);
   drawD(0,0,0,true,0,1,false,P.la.st===1?1:(P.la.st>1?2:0),face,true);
   ctx.restore();
   ctx.restore();
@@ -797,9 +835,14 @@ function loadLevel(i){
   G.pals=(L0.pals||[]).map((a,i)=>({x:a[0],y:GROUND_Y,kind:a[1],dir:-1,seed:i*2.1,
                                     moving:false,used:false,gone:false}));
   G.charge=null; P.ride=null; G.foeTotal=G.foes.length;
+  G.emb=[];
+  G.volcs=(L0.terra||[]).filter(f=>f[0]==="volc").map((f,i)=>({f:f,st:0,t:2.2+i*1.7}));
+  // tor: [centre, range, speed] — a dust devil pacing a stretch of flat
+  G.tors=(L0.tors||[]).map((t,i)=>({home:t[0],range:t[1],sp:t[2]||50,
+                                    x:t[0],y:GROUND_Y,dir:i%2?-1:1,seed:i*3.1}));
   el("lvl").textContent=L0.name;
   if(L0.boss) G.boss={stage:0,foes:[],cur:null,gap:0,done:false,started:false};
-  showCard(L0.name,L0.sub,L0.intro+(L0.mission?"\n<b>Mission: "+L0.mission.hint+"</b>":""),
+  showCard(L0.name,L0.sub,L0.intro+(L0.mission?"\n!Mission: "+L0.mission.hint:""),
            "Ride",()=>{G.mode="play";});
 }
 function levelGoalX(){return G.lvl.goal;}
@@ -828,8 +871,11 @@ function misState(){
 function showCard(title,sub,body,btn,fn,btn2,fn2,keys){
   G.mode="card";
   card.innerHTML=`<h2>${title}</h2><div class="sub">${sub}</div>`+
-    body.split("\n").map(p=>`<p>${p}</p>`).join("")+
-    `<div class="keys">${keys!==undefined?keys:(isTouch?"◀ ▶ move · ▲ jump · ➰ lasso":"← → move · ↑ / W jump · SPACE throw the lasso · Enter to continue")}</div>`;
+    // A line starting with "!" is the emphasised one — carried by colour, not
+    // weight. Keeps markup out of the level text entirely.
+    body.split("\n").map(t=>t.charAt(0)==="!"?`<p class="mis">${t.slice(1)}</p>`
+                                             :`<p>${t}</p>`).join("")+
+    `<div class="keys">${keys!==undefined?keys:(isTouch?"◀ ▶ move · ▲ jump · ➰ lasso · ▼ off the horse":"← → move · ↑ / W jump · SPACE throw the lasso · DOWN step off the horse")}</div>`;
   const b=document.createElement("button"); b.className="btn go"; b.textContent=btn;
   b.onclick=()=>{ov.classList.remove("on"); fn&&fn();}; card.appendChild(b);
   if(btn2){const b2=document.createElement("button");b2.className="btn";b2.textContent=btn2;
@@ -868,23 +914,23 @@ function toast(head,body,secs){
    and outwards, thinning as they go. Capped, because a bull at full charge
    would otherwise emit for as long as it runs. */
 const DUST_MAX=80;
-function puff(x,y,dir,power){
+function puff(x,y,dir,power,wet){
   if(G.dust.length>=DUST_MAX) return;
-  G.dust.push({ x:x+(Math.random()-0.5)*5, y:y-Math.random()*4,
+  G.dust.push({ wet:!!wet, x:x+(Math.random()-0.5)*5, y:y-Math.random()*4,
                 r:1.1+Math.random()*1.6, t:0, life:0.34+Math.random()*0.30,
                 vx:-dir*(14+Math.random()*30)*power,
                 // Rising matters more than trailing: without it the puffs line
                 // up along the ground and read as a row of circles, not a cloud.
                 vy:-(22+Math.random()*30)*power });
 }
-function burst(x,y,n,power){ for(let i=0;i<n;i++) puff(x,y,i%2?1:-1,power); }
+function burst(x,y,n,power,wet){ for(let i=0;i<n;i++) puff(x,y,i%2?1:-1,power,wet); }
 /* Rate-limited emitter. The accumulator lives on the thing kicking the dust up,
    so each animal keeps its own cadence rather than sharing one global timer. */
-function kick(o,dt,x,y,dir,power,rate){
+function kick(o,dt,x,y,dir,power,rate,wet){
   o._d=(o._d||0)+dt;
   const iv=1/rate;
   let guard=6;
-  while(o._d>=iv && guard-->0){ o._d-=iv; puff(x,y,dir,power); }
+  while(o._d>=iv && guard-->0){ o._d-=iv; puff(x,y,dir,power,wet); }
   if(o._d>iv) o._d=0;
 }
 function dustStep(dt){
@@ -896,13 +942,91 @@ function dustStep(dt){
 }
 function drawDust(){
   if(!G.dust.length) return;
-  ctx.save(); setInk("#b9a47c",1.4);
+  ctx.save();
   G.dust.forEach(d=>{
-    ctx.globalAlpha=Math.max(0,(1-d.t/d.life)*0.85);
-    ctx.beginPath(); ctx.arc(d.x,d.y,d.r,0,7); ctx.stroke();
+    setInk(d.wet?"#5d7a82":"#b9a47c",d.wet?1.6:1.4);
+    ctx.globalAlpha=Math.max(0,(1-d.t/d.life)*(d.wet?0.95:0.85));
+    ctx.beginPath();
+    // Water throws flatter, wider rings than dry dirt does.
+    if(d.wet) ctx.ellipse(d.x,d.y,d.r*1.5,d.r*0.62,0,0,7);
+    else ctx.arc(d.x,d.y,d.r,0,7);
+    ctx.stroke();
   });
   ctx.restore();
 }
+
+/* Getting off. The horse does not evaporate — she waits where you left her, and
+   can be roped again, because she is a friend and not a power-up. */
+function dismount(){
+  if(!P.ride) return;
+  const a=P.rideFrom;
+  P.ride=null; P.rideFrom=null;
+  P.vy=-150; P.x+=P.face*6;                       // hop down and forward, off her flank
+  // She is left BEHIND the direction of travel, so she waits without standing in
+  // the way of wherever D! was going.
+  if(a){ a.x=Math.max(14,P.x+P.w/2-P.face*30); a.gone=false; a.used=false; a.dir=P.face; }
+  toast("Horse","waits where you left her. Rope her again when you need her.");
+}
+
+/* ================================================================= hazards */
+/* Volcanoes are part of the land — the height field draws the cone — but they
+   also keep time: a long doze, a rumble with smoke, then a throw of embers on
+   real ballistic arcs. Tornadoes are the opposite: nothing to do with the
+   ground, pacing a stretch and grabbing anything that walks into the column.
+   Both are telegraphed on purpose. Damage you cannot see coming is not
+   difficulty, it is just noise. */
+function craterY(f){ const y=surfaceY(f[1]); return y===null?GROUND_Y-f[3]:y; }
+function erupt(v){
+  const cx=v.f[1], cy=craterY(v.f);
+  G.shake=Math.max(G.shake,0.3);
+  const n=5+Math.floor(Math.random()*4);
+  for(let i=0;i<n;i++)
+    G.emb.push({x:cx+(Math.random()-0.5)*12, y:cy-5,
+                vx:(Math.random()-0.5)*190, vy:-(195+Math.random()*135), life:3.6});
+  burst(cx,cy-6,8,1.5);
+}
+function volcStep(dt){
+  for(let i=0;i<G.volcs.length;i++){
+    const v=G.volcs[i], cx=v.f[1];
+    v.t-=dt;
+    if(v.st===0){ if(v.t<=0){ v.st=1; v.t=1.15; } }             // dozing
+    else if(v.st===1){                                          // rumbling: smoke
+      if(Math.abs(P.x-cx)<VW*0.7) G.shake=Math.max(G.shake,0.05);
+      kick(v,dt,cx,craterY(v.f)-2,1,0.55,9);
+      if(v.t<=0){ v.st=2; v.t=0.55; erupt(v); }
+    }
+    else if(v.t<=0){ v.st=0; v.t=4.4+Math.random()*2.6; }        // spent
+  }
+}
+function embStep(dt){
+  const px=P.x+P.w/2, py=P.y+P.h-14;
+  for(let i=G.emb.length-1;i>=0;i--){
+    const e=G.emb[i];
+    e.life-=dt; e.vy+=GRAV*0.55*dt; e.x+=e.vx*dt; e.y+=e.vy*dt;
+    const sy=surfaceY(e.x);
+    if(sy!==null && e.y>sy){ burst(e.x,sy-2,3,0.7); G.emb.splice(i,1); continue; }
+    if(e.life<=0 || e.y>DEATH_Y){ G.emb.splice(i,1); continue; }
+    if(P.hurt<=0 && Math.abs(e.x-px)<9 && Math.abs(e.y-py)<16){
+      G.emb.splice(i,1); burst(e.x,e.y,4,0.8);
+      hurt(false); toast("Ember","the mountain throws rock when it is angry.");
+    }
+  }
+}
+function torStep(dt){
+  for(let i=0;i<G.tors.length;i++){
+    const t=G.tors[i];
+    t.x += t.dir*t.sp*dt;
+    if(Math.abs(t.x-t.home)>t.range) t.dir*=-1;
+    t.y = groundY(t.x);
+    const dx=Math.abs((P.x+P.w/2)-t.x), feet=P.y+P.h;
+    if(dx<15 && feet<t.y+12 && feet>t.y-TOR_H){
+      P.vy=Math.min(P.vy,-235);                 // straight up the funnel
+      P.vx += t.dir*170*dt;
+      hurt(false);                              // no-ops during the grace period
+    }
+  }
+}
+const TOR_H=78;
 
 /* ================================================================== physics */
 const GRAV=1750, RUN=205, AIR=0.86, JUMP=-530, MAXFALL=520;
@@ -911,6 +1035,109 @@ const LAS_MAX=96, LAS_SPEED=560, LAS_WIND=0.12, LAS_REEL=0.20, LAS_COOL=0.26;
 // airtime 2*530/1750 = 0.606s -> max jump span ~124 world units.
 // Every gap below is 60, so a mistimed jump still clears.
 function rectHit(a,b){return a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y;}
+
+/* ===================================================================== land */
+/* The ground used to be a row of flat rectangles. It still is underneath — the
+   rectangles decide WHERE there is land and where there is a pit, so every jump
+   distance and pit edge in the five levels stays exactly as tuned — but the
+   walkable surface on top of them is now a height field built from features:
+
+     ["hill",  centre, halfWidth, height]   a rise to climb
+     ["water", centre, halfWidth, depth ]   a basin, filled to the rim: a river
+
+   Both use a cosine-squared profile, so the slope is zero where a feature meets
+   flat ground. No seam, no step, and nothing to trip over at the join. */
+const WATER_RIM=4;                 // how far below the bank the water sits
+const STEP_UP=15, STICK_DOWN=11;   // how much rise you can walk up / fall you stay glued to
+function bump(x,cx,hw){            // 1 at the centre, 0 at either edge
+  const d=(x-cx)/hw;
+  if(d<=-1||d>=1) return 0;
+  const c=Math.cos(d*Math.PI/2);
+  return c*c;
+}
+function groundBase(x){            // top of the solid land under x, or null over a pit
+  const ps=G.plats&&G.plats.length?G.plats:(G.lvl?G.lvl.plats:null);
+  if(!ps) return null;
+  for(let i=0;i<ps.length;i++){ const p=ps[i];
+    if(p[3]>14 && x>=p[0] && x<=p[0]+p[2]) return p[1];
+  }
+  return null;
+}
+function terraOff(x){              // + lifts the surface, - sinks it
+  const t=G.lvl&&G.lvl.terra; if(!t) return 0;
+  let up=0, down=0;
+  for(let i=0;i<t.length;i++){
+    const f=t[i], b=bump(x,f[1],f[2]);
+    if(!b) continue;
+    if(f[0]==="water") down=Math.max(down,f[3]*b);
+    else if(f[0]==="volc"){
+      // A mountain with a crater bitten out of the top: the cone, minus a
+      // narrow inverted bump at the centre. Rim at ~0.79 of the height, crater
+      // floor at ~0.58, so there is a hollow you can stand in — badly advised.
+      up=Math.max(up, f[3]*b - f[3]*0.52*bump(x,f[1],f[2]*0.26));
+    }
+    else up=Math.max(up,f[3]*b);
+  }
+  return up-down;
+}
+function surfaceY(x){ const b=groundBase(x); return b===null?null:b-terraOff(x); }
+/* Walkers turn round at a riverbank. A demon standing in the middle of a river
+   the player has to swim would be damage with no way to dodge it. */
+function landBlocked(x){
+  const t=G.lvl&&G.lvl.terra; if(!t) return false;
+  for(let i=0;i<t.length;i++){
+    const f=t[i]; if(f[0]!=="water") continue;
+    if(f[3]*bump(x,f[1],f[2]) > 4) return true;
+  }
+  return false;
+}
+function groundY(x){ const y=surfaceY(x); return y===null?GROUND_Y:y; }   // for scenery
+function slopeAt(x){               // + means the land falls away to the right
+  const a=surfaceY(x-5), b=surfaceY(x+5);
+  if(a===null||b===null) return 0;
+  return (b-a)/10;
+}
+function waterAt(x){
+  const t=G.lvl&&G.lvl.terra; if(!t) return null;
+  for(let i=0;i<t.length;i++){
+    const f=t[i]; if(f[0]!=="water") continue;
+    const b0=bump(x,f[1],f[2]); if(!b0) continue;
+    const b=groundBase(x); if(b===null) continue;
+    return {top:b+WATER_RIM, bed:b+f[3]*b0};
+  }
+  return null;
+}
+/* Support comes from the height field now, not from the rectangles. */
+function landStep(){
+  const sy=surfaceY(P.x+P.w/2);
+  if(sy===null) return;                       // over a pit: nothing to stand on
+  const feet=P.y+P.h;
+  if(P.swim){
+    // Afloat the bed is not ground you can push off, but it still lifts you: as
+    // the bed rises into the shallows of a bank it carries the swimmer up until
+    // they are shallow enough to be walking again. Without this a floating body
+    // sits below the bank it is trying to reach and can never land.
+    if(feet>sy){ P.y=sy-P.h; if(P.vy>0) P.vy=0; }
+    return;
+  }
+  if(P.vy>=0 && feet>=sy){
+    P.y=sy-P.h; P.vy=0; P.onGround=true;
+    // Only remember a respawn point with the whole footprint on land — the box
+    // is 16 wide and the surface is sampled at its centre, so a landing with one
+    // foot over a pit used to be recorded as safe and respawn into the hole.
+    if(surfaceY(P.x)!==null && surfaceY(P.x+P.w)!==null){ P.safeX=P.x; P.safeY=sy-P.h-2; }
+    return;
+  }
+  // Walking off a crest: stay glued rather than launching off every small brow.
+  if(P.vy>=0 && P.wasGround && feet>sy-STICK_DOWN){ P.y=sy-P.h; P.vy=0; P.onGround=true; }
+}
+function slopeUpStep(){                        // walking into a rise lifts you onto it
+  if(!P.wasGround) return;
+  const sy=surfaceY(P.x+P.w/2);
+  if(sy===null) return;
+  const feet=P.y+P.h;
+  if(feet>sy && feet-sy<=STEP_UP){ P.y=sy-P.h; if(P.vy>0) P.vy=0; }
+}
 
 function step(dt){
   const Lv=G.lvl;
@@ -926,45 +1153,82 @@ function step(dt){
     });
     G.plats=(Lv.plats||[]).concat(G.movs.map(m=>[m.x,m.y,m.w,m.h]));
   }else G.plats=(Lv.plats||[]).slice();
+  // ---- what am I standing in ----
+  P.wasGround=P.onGround;
+  const W=waterAt(P.x+P.w/2);
+  const wet = !!W && (P.y+P.h) > W.top;
+  P.swim = wet && (P.y+P.h) > W.top+3;
+  if(wet && !P.wet) burst(P.x+P.w/2, W.top, 7, 0.8, true);   // splash going in
+  P.wet=wet;
   // ---- horizontal ----
   const dir=(K.right?1:0)-(K.left?1:0);
   if(dir) P.face=dir;
   const RUN_NOW = P.ride?300:RUN;
-  P.vx += (dir*RUN_NOW - P.vx) * (P.onGround?0.30:0.12);
-  if(!dir) P.vx *= P.onGround?0.72:AIR;
+  // Terrain sets the pace: swimming is a crawl, climbing costs you, and a slope
+  // running away downhill gives some back.
+  let tf=1;
+  if(P.swim) tf=0.46;
+  else if(dir && P.onGround){
+    const climb = -slopeAt(P.x+P.w/2)*dir;      // >0 uphill
+    tf = Math.max(0.58, Math.min(1.26, 1 - climb*0.62));
+  }
+  P.vx += (dir*RUN_NOW*tf - P.vx) * (P.onGround?0.30:(P.swim?0.10:0.12));
+  if(!dir) P.vx *= P.swim?0.86:(P.onGround?0.72:AIR);
+  P._x0=P.x;
   P.x += P.vx*dt;
   // Keep the player inside the level. Without this you can sprint past the boss
   // arena and off the right-hand end of the world, falling forever.
   if(P.x<0){P.x=0;P.vx=0;}
   if(P.x>Lv.len-P.w){P.x=Lv.len-P.w;P.vx=0;}
   collide(0);
+  slopeUpStep();
   // ---- vertical ----
   const prevBottom = P.y + P.h;          // needed for one-way platform logic
   const onBefore=P.onGround, vyBefore=P.vy;
-  P.vy=Math.min(MAXFALL,P.vy+GRAV*dt);
+  if(P.swim){
+    // Buoyancy, not gravity: the deeper the feet, the harder the water pushes
+    // back, so the body settles at the surface and can be swum across.
+    P.vy += GRAV*0.20*dt;
+    P.vy -= Math.min(44,(P.y+P.h)-W.top)*20*dt;
+    P.vy *= 0.86;
+    P.vy = Math.max(-190, Math.min(150, P.vy));
+  }else{
+    P.vy=Math.min(MAXFALL,P.vy+GRAV*dt);
+  }
   P.y += P.vy*dt;
   P.onGround=false;
   collide(1,prevBottom);
+  landStep();
   // dust: kicked off the heel while running, off the hooves while riding, and
   // thrown out in a ring on a heavy landing
-  if(P.onGround && Math.abs(P.vx)>70)
+  if(wet){
+    if(Math.abs(P.vx)>25) kick(P,dt, P.x+P.w/2-P.face*4, W.top, P.face, 0.55, 9, true);
+    else P._d=0;
+  }
+  else if(P.onGround && Math.abs(P.vx)>70)
     kick(P,dt, P.x+P.w/2-P.face*(P.ride?13:5), P.y+P.h-1, P.face,
          P.ride?1.30:0.90, P.ride?16:11);
   else P._d=0;
-  if(P.onGround && !onBefore && vyBefore>260) burst(P.x+P.w/2,P.y+P.h-1,6,0.9);
+  if(!wet && P.onGround && !onBefore && vyBefore>260) burst(P.x+P.w/2,P.y+P.h-1,6,0.9);
   // ---- jump w/ coyote + buffer ----
   P.coyote = P.onGround?0.09:Math.max(0,P.coyote-dt);
   if(K.jumpPressed){P.buffer=0.13; K.jumpPressed=false;}
   P.buffer=Math.max(0,P.buffer-dt);
-  if(P.buffer>0 && P.coyote>0){ P.vy=P.ride?-625:JUMP; P.buffer=0; P.coyote=0; P.onGround=false; }
+  // ---- step off the horse ----
+  if(K.downPressed){ K.downPressed=false; if(P.ride) dismount(); }
+  if(P.buffer>0 && (P.coyote>0 || P.swim)){
+    P.vy = P.swim ? -205 : (P.ride?-625:JUMP);   // in water it is a stroke, not a leap
+    P.buffer=0; P.coyote=0; P.onGround=false;
+  }
   if(!K.jump && P.vy<-150) P.vy=-150;          // variable jump height
   // ---- animation phase ----
-  if(P.onGround && Math.abs(P.vx)>14) P.phase += Math.abs(P.vx)*dt*0.10;
+  if(P.swim) P.phase += (Math.abs(P.vx)>8?7:3.2)*dt;
+  else if(P.onGround && Math.abs(P.vx)>14) P.phase += Math.abs(P.vx)*dt*0.10;
   else if(P.onGround) P.phase += (0 - (P.phase%(Math.PI*2)))*0.0;
   // ---- fell off the world ----
   if(P.y>DEATH_Y) hurt(true);
   // ---- the herd ----
-  G.pals.forEach(a=>{ a.moving=false; });
+  G.pals.forEach(a=>{ a.moving=false; a.y=groundY(a.x); });
   if(G.charge){
     const c=G.charge;
     c.x += c.dir*430*dt; c.life-=dt;
@@ -973,7 +1237,8 @@ function step(dt){
     if(G.boss&&G.boss.started&&G.boss.cur){ const f=G.boss.cur;
       if(Math.abs(f.x-c.x)<22 && f.hp>0){ f.hp--; f.small=true; f.stun=0.9;
         toast(foeName(f), f.hp<=0?"trampled. Next.":"knocked back by the bull."); } }
-    kick(c,dt, c.x-c.dir*18, GROUND_Y-1, c.dir, 1.8, 20);
+    c.y=groundY(c.x);
+    kick(c,dt, c.x-c.dir*18, c.y-1, c.dir, 1.8, 20);
     if(c.life<=0 || c.x<G.cam-120 || c.x>G.cam+VW+160) G.charge=null;
   }
   // ---- lasso ----
@@ -981,10 +1246,19 @@ function step(dt){
   // ---- foes ----
   G.foes.forEach(f=>{
     if(f.dead){ f.dead+=dt; return; }
-    if(f.kind==="anx"){ f.x += f.dir*38*dt; f.y = 196 + Math.sin(G.t*3+f.seed)*13; }
-    else f.x += f.dir*(f.kind==="dbt"?44:30)*dt;
+    if(f.kind==="anx"){ f.x += f.dir*38*dt; f.y = groundY(f.x)-14 + Math.sin(G.t*3+f.seed)*13; }
+    else {
+      const nx=f.x + f.dir*(f.kind==="dbt"?44:30)*dt;
+      if(landBlocked(nx)) f.dir*=-1; else f.x=nx;
+      f.y = groundY(f.x);
+    }
     if(Math.abs(f.x-f.home)>f.range) f.dir*=-1;
-    const fb={x:f.x-9,y:f.y-20,w:18,h:20}, pb=pbox();
+    const fb={x:f.x-9,y:f.y-20,w:18,h:20};
+    // Mounted, the animal is sixty units of horse while the player's box is
+    // sixteen — a demon could pass clean through its shoulder untouched. Give
+    // the ride the reach it visibly has. Only for riding one down, never for
+    // taking a hit.
+    const pb = P.ride ? {x:P.x-16,y:P.y,w:P.w+32,h:P.h+8} : pbox();
     if(rectHit(pb,fb)){
       if(P.ride){                       // mounted: ride straight through them
         f.dead=0.001; G.shake=.2; toast(foeName(f),"ridden down.");
@@ -1031,12 +1305,31 @@ function step(dt){
   // ---- camera ----
   const want=Math.max(0,Math.min(Lv.len-VW, P.x-VW*0.40));
   G.cam += (want-G.cam)*Math.min(1,dt*7);
+  volcStep(dt); embStep(dt); torStep(dt);
+  if(isTouch) pad.classList.toggle("mount",!!P.ride);
   dustStep(dt);
   if(G.shake>0)G.shake=Math.max(0,G.shake-dt);
   if(toastT>0){toastT-=dt; if(toastT<=0)toastEl.classList.remove("on");}
 }
 function pbox(){return {x:P.x,y:P.y,w:P.w,h:P.h};}
-function handPos(){ return {x:P.x+P.w/2+P.face*6.5, y:P.y+P.h-14}; }
+/* Where D! himself is, as opposed to where his collision box is. Mounted he is
+   drawn up on the horse's back and set back from the box centre at 0.82 scale,
+   so anything that has to start at his HAND — the rope, the spinning loop —
+   needs the same offset. Without it the lasso leaves a point in mid air under
+   the saddle. One place to change, and drawRider reads it too, so the two can
+   never drift apart. */
+const RIDE_S=0.82;
+function rideOff(){ return HORSE.cv ? {dx:-11, dy:-25} : {dx:-1, dy:-26}; }
+function bodyAnchor(){                     // origin of D!'s own drawing frame
+  const cx=P.x+P.w/2, cy=P.y+P.h;
+  if(!P.ride) return {x:cx, y:cy, s:1};
+  const r=rideOff();
+  return {x:cx + P.face*r.dx, y:cy + r.dy, s:RIDE_S};
+}
+function handPos(){
+  const a=bodyAnchor();
+  return {x:a.x + P.face*6.5*a.s, y:a.y - 14*a.s};
+}
 function ropeTip(){
   const h=handPos(), L0=P.la.len;
   return {x:h.x+P.face*L0, y:h.y-3-Math.sin(Math.min(1,L0/LAS_MAX)*Math.PI)*6};
@@ -1067,8 +1360,9 @@ function ropeCatch(f){
 function palCatch(a){
   a.used=true;
   if(a.kind==="horse"){
-    a.gone=true; P.ride={t:0};
-    toast("Horse","Up you get. Faster, higher, and demons bounce off.");
+    a.gone=true; P.ride={t:0}; P.rideFrom=a;
+    toast("Horse","Up you get. Faster, higher, and demons bounce off. "+
+                  (isTouch?"▼ to step down.":"DOWN to step down."));
   }else if(a.kind==="bull"){
     a.gone=true;
     // The bull charges the way D! is facing and flattens whatever it meets.
@@ -1097,10 +1391,14 @@ function lassoStep(dt){
   if(A.st===2){                                  // rope flying out
     A.len+=LAS_SPEED*dt;
     const tip=ropeTip();
+    // From the saddle the rope leaves a hand two feet higher, so the same throw
+    // passes further above a demon's head. Widen the vertical catch to match, or
+    // roping from horseback would silently stop working.
+    const vTol = P.ride ? 56 : 34;
     const pal=G.pals.find(a=>!a.used && !a.gone &&
-        Math.abs(a.x-tip.x)<20 && Math.abs((a.y-22)-tip.y)<34);
+        Math.abs(a.x-tip.x)<20 && Math.abs((a.y-22)-tip.y)<vTol);
     if(pal){ A.st=0; A.len=0; A.cool=LAS_COOL; palCatch(pal); G.shake=.16; return; }
-    const hit=liveFoes().find(f=>Math.abs(f.x-tip.x)<16 && Math.abs((f.y-10)-tip.y)<34);
+    const hit=liveFoes().find(f=>Math.abs(f.x-tip.x)<16 && Math.abs((f.y-10)-tip.y)<vTol);
     if(hit){ A.st=3; A.t=0; A.tgt=hit; ropeCatch(hit); G.shake=.18; return; }
     if(A.len>=LAS_MAX){ A.st=4; A.t=0; }
     return;
@@ -1126,16 +1424,30 @@ function collide(axis,prevBottom){
     const oneWay = p.h<=14;
     if(axis===0 && oneWay) continue;              // never block sideways
     if(!rectHit(pbox(),p)) continue;
-    if(axis===0){ P.x = P.vx>0 ? p.x-P.w : p.x+p.w; P.vx=0; }
+    if(axis===0){
+      // Solid land blocks sideways only where the player is genuinely buried in
+      // it — the far wall of a pit. Wading into a river drops them below the
+      // rectangle's top with the bed still under their feet, and climbing the
+      // far bank does the same; blocking either would fire them back out.
+      if(!oneWay){
+        if(P.swim) continue;                  // water has no walls
+        const lead = P.vx>0 ? P.x+P.w+1 : P.x-1;
+        const sy=surfaceY(lead);
+        if(sy===null || P.y+P.h <= sy+STEP_UP) continue;
+        // The land ahead rises more than a step: stop where the player was. The
+        // old resolution snapped them to the RECTANGLE's edge, which on a height
+        // field can be hundreds of units away — swimming to a riverbank used to
+        // fling you back to the start of the whole ground span.
+        P.x=P._x0; P.vx=0; continue;
+      }
+      P.x = P.vx>0 ? p.x-P.w : p.x+p.w; P.vx=0;
+    }
     else if(oneWay){
       if(P.vy<=0) continue;                       // rising: pass straight through
       if(prevBottom>p.y+2) continue;              // already level with or below it
       P.y=p.y-P.h; P.onGround=true; P.vy=0;
-    }else{
-      if(P.vy>0){ P.y=p.y-P.h; P.onGround=true; P.safeX=P.x; P.safeY=p.y-P.h-2; }
-      else { P.y=p.y+p.h; }
-      P.vy=0;
     }
+    // Solid land is resolved by landStep() against the height field.
   }
 }
 function hurt(fell){
@@ -1202,7 +1514,7 @@ function bossStep(dt){
     f.x += f.dir*f.sp*dt;
     if(Math.abs(f.x-f.home)>f.range) f.dir*=-1;
   }
-  if(f.kind==="anx") f.y=194+Math.sin(G.t*3.4+f.seed)*16;
+  f.y = f.kind==="anx" ? groundY(f.x)-16+Math.sin(G.t*3.4+f.seed)*16 : groundY(f.x);
   const fb={x:f.x-9,y:f.y-20,w:18,h:20};
   if(f.stun<=0 && rectHit(pbox(),fb)){
     const above=P.vy>60 && P.y+P.h<f.y-6;
@@ -1240,22 +1552,38 @@ function render(){
   const shy=G.shake>0?(Math.random()-0.5)*4*G.shake/0.3:0;
   ctx.save(); ctx.translate(-G.cam+shx,-CAMY+shy);
   // platforms
+  const bot=CAMY+VH+8;
   (G.plats||Lv.plats||[]).forEach(p=>{
     if(p[0]+p[2]<G.cam-40||p[0]>G.cam+VW+40)return;
-    // Solid ground is filled all the way down to the bottom of the view so the
-    // gaps between segments read as real holes rather than shallow steps.
-    const deep = p[3]>14 ? (CAMY+VH)-p[1]+8 : p[3];
-    ctx.fillStyle="#d8c8a4"; ctx.fillRect(p[0],p[1],p[2],deep);
-    setInk("#241c14",2.4);
-    ctx.beginPath(); ctx.moveTo(p[0],p[1]); ctx.lineTo(p[0]+p[2],p[1]); ctx.stroke();
-    setInk("#b9a47c",1.6);
-    for(let i=p[0]+10;i<p[0]+p[2];i+=22) L(i,p[1]+3,i-5,p[1]+Math.min(deep,34));
+    if(p[3]>14){
+      // Solid land, drawn as the height field across it and filled to the bottom
+      // of the view so the gaps between segments read as real holes.
+      const x0=Math.max(p[0],G.cam-30), x1=Math.min(p[0]+p[2],G.cam+VW+30);
+      if(x1<=x0) return;
+      ctx.beginPath(); ctx.moveTo(x0,bot); ctx.lineTo(x0,surfaceY(x0));
+      for(let x=x0+4;x<x1;x+=4) ctx.lineTo(x,surfaceY(x));
+      ctx.lineTo(x1,surfaceY(x1)); ctx.lineTo(x1,bot); ctx.closePath();
+      ctx.fillStyle="#d8c8a4"; ctx.fill();
+      setInk("#241c14",2.4);
+      ctx.beginPath(); ctx.moveTo(x0,surfaceY(x0));
+      for(let x=x0+4;x<x1;x+=4) ctx.lineTo(x,surfaceY(x));
+      ctx.lineTo(x1,surfaceY(x1)); ctx.stroke();
+      setInk("#b9a47c",1.6);
+      for(let i=Math.ceil((x0+10)/22)*22;i<x1;i+=22){ const sy=surfaceY(i);
+        L(i,sy+3,i-5,Math.min(sy+34,bot)); }
+    }else{
+      ctx.fillStyle="#d8c8a4"; ctx.fillRect(p[0],p[1],p[2],p[3]);
+      setInk("#241c14",2.4);
+      ctx.beginPath(); ctx.moveTo(p[0],p[1]); ctx.lineTo(p[0]+p[2],p[1]); ctx.stroke();
+      setInk("#b9a47c",1.6);
+      for(let i=p[0]+10;i<p[0]+p[2];i+=22) L(i,p[1]+3,i-5,p[1]+p[3]);
+    }
   });
   // deco
-  (Lv.deco||[]).forEach(d=>{ if(d[0]>G.cam-60&&d[0]<G.cam+VW+60) drawDeco(d[1],d[0],210); });
+  (Lv.deco||[]).forEach(d=>{ if(d[0]>G.cam-60&&d[0]<G.cam+VW+60) drawDeco(d[1],d[0],groundY(d[0])); });
   // signs (posts)
   G.signs.forEach(s=>{ if(s.x<G.cam-40||s.x>G.cam+VW+40)return;
-    setInk("#6b5843",2.2); L(s.x,s.y+32,s.x,s.y+8);
+    setInk("#6b5843",2.2); L(s.x,Math.max(s.y+10,groundY(s.x)),s.x,s.y+8);
     ctx.fillStyle="#d8c8a4"; ctx.fillRect(s.x-9,s.y-2,18,11);
     ctx.strokeRect(s.x-9,s.y-2,18,11);
     ctx.fillStyle="#6b5843"; ctx.font="9.5px "+UIF; ctx.textAlign="center";
@@ -1272,6 +1600,10 @@ function render(){
   // the herd
   G.pals.forEach(a=>{ if(a.gone||a.x<G.cam-80||a.x>G.cam+VW+80)return; drawPal(a); });
   if(G.charge){ const c=G.charge; c.moving=true; drawBull(c); }
+  (Lv.terra||[]).forEach(f=>{ if(f[0]==="volc" && f[1]>G.cam-140 && f[1]<G.cam+VW+140) drawVolc(f); });
+  G.tors.forEach(t=>{ if(t.x>G.cam-60&&t.x<G.cam+VW+60) drawTornado(t); });
+  drawEmbers();
+  drawWater();
   drawDust();
   // moving platform bolts, so they read as machinery rather than scenery
   (G.movs||[]).forEach(m=>{ if(m.x+m.w<G.cam-40||m.x>G.cam+VW+40)return;
@@ -1286,26 +1618,125 @@ function render(){
   // goal flag
   const gx=levelGoalX();
   if(gx>G.cam-40&&gx<G.cam+VW+40){
-    setInk("#241c14",2.4); L(gx,210,gx,150);
+    const gy=groundY(gx);
+    setInk("#241c14",2.4); L(gx,gy,gx,gy-60);
     ctx.fillStyle="#c4552a"; ctx.beginPath();
-    ctx.moveTo(gx,150); ctx.lineTo(gx+26,158); ctx.lineTo(gx,168); ctx.closePath(); ctx.fill();
+    ctx.moveTo(gx,gy-60); ctx.lineTo(gx+26,gy-52); ctx.lineTo(gx,gy-42); ctx.closePath(); ctx.fill();
   }
   // player
   const pose = P.la.st===1 ? 1 : (P.la.st===2||P.la.st===3||P.la.st===4) ? 2 : 0;
   if(!(P.hurt>0 && Math.floor(G.t*18)%2)){
     if(P.ride) drawRider(P.x+P.w/2,P.y+P.h,P.face);
-    else drawD(P.x+P.w/2,P.y+P.h,P.phase,P.onGround,P.vy,P.face,false,pose);
+    else drawD(P.x+P.w/2,P.y+P.h,P.phase,P.swim?true:P.onGround,P.swim?0:P.vy,P.face,false,pose);
   }
   drawLasso();
   ctx.restore();
 }
 
+function drawVolc(f){
+  const cx=f[1], rim=surfaceY(cx-f[2]*0.27), cy=craterY(f);
+  if(rim===null) return;
+  setInk("#241c14",2.2);                                    // the crater mouth
+  ctx.beginPath(); ctx.moveTo(cx-f[2]*0.27,rim);
+  ctx.quadraticCurveTo(cx,cy+4,cx+f[2]*0.27,rim); ctx.stroke();
+  const v=G.volcs.find(q=>q.f===f);
+  if(!v) return;
+  if(v.st===1){                                             // about to go
+    setInk("#c4552a",1.6); ctx.globalAlpha=.55+Math.sin(G.t*14)*0.25;
+    ctx.beginPath(); ctx.ellipse(cx,cy,f[2]*0.19,3.5,0,0,7); ctx.stroke();
+    ctx.globalAlpha=1;
+  }else if(v.st===2){
+    ctx.fillStyle="rgba(196,85,42,.45)";
+    ctx.beginPath(); ctx.ellipse(cx,cy,f[2]*0.21,5.5,0,0,7); ctx.fill();
+  }
+}
+function drawEmbers(){
+  for(let i=0;i<G.emb.length;i++){
+    const e=G.emb[i];
+    setInk("#a5321f",2.2);
+    ctx.beginPath(); ctx.moveTo(e.x-e.vx*0.028,e.y-e.vy*0.028); ctx.lineTo(e.x,e.y); ctx.stroke();
+    ctx.fillStyle="#c4552a";
+    ctx.beginPath(); ctx.arc(e.x,e.y,2.3,0,7); ctx.fill();
+  }
+}
+function drawTornado(t){
+  const sway=Math.sin(G.t*1.6+t.seed)*4;
+  const wAt=u=>4+u*u*30;
+  ctx.save(); ctx.translate(t.x,t.y);
+  // The body first: a translucent cone, so the thing reads as a column of dust
+  // with weight to it rather than a handful of loose curves.
+  ctx.beginPath();
+  ctx.moveTo(-wAt(0),0);
+  for(let u=0;u<=1.0001;u+=0.1) ctx.lineTo(-wAt(u)+sway*u,-u*TOR_H);
+  for(let u=1;u>=-0.0001;u-=0.1) ctx.lineTo(wAt(u)+sway*u,-u*TOR_H);
+  ctx.closePath();
+  // Fade the fill out towards the top, or the polygon's flat top edge reads as
+  // a hard triangle instead of dust thinning into the air.
+  const gr=ctx.createLinearGradient(0,-TOR_H,0,0);
+  gr.addColorStop(0,"rgba(150,134,104,.04)");
+  gr.addColorStop(0.45,"rgba(150,134,104,.22)");
+  gr.addColorStop(1,"rgba(150,134,104,.34)");
+  ctx.fillStyle=gr; ctx.fill();
+  setInk("#8a7a5c",1.7);
+  for(let k=0;k<6;k++){                                     // six twisting strands
+    ctx.globalAlpha=0.42+0.12*(k%3);
+    ctx.beginPath();
+    for(let u=0;u<=1.0001;u+=0.06){
+      const yy=-u*TOR_H, ph=G.t*8+k*1.05+u*5.0;
+      const x=Math.sin(ph)*wAt(u)+sway*u;
+      u===0?ctx.moveTo(x,yy):ctx.lineTo(x,yy);
+    }
+    ctx.stroke();
+  }
+  ctx.globalAlpha=.6;                                       // grit round the foot
+  for(let i=0;i<3;i++){ const a=G.t*9+i*2.1;
+    ctx.beginPath(); ctx.ellipse(Math.cos(a)*15,-4-i*4,6,2.2,0,0,7); ctx.stroke(); }
+  ctx.globalAlpha=.45;                                      // debris riding the top
+  for(let i=0;i<4;i++){ const a=G.t*5.5+i*1.6;
+    ctx.beginPath(); ctx.ellipse(Math.cos(a)*26+sway,-TOR_H+6+Math.sin(a*1.3)*7,4,1.8,a,0,7); ctx.stroke(); }
+  ctx.restore();
+}
+/* Water goes on last of the scene so anything wading is seen through it. */
+function drawWater(){
+  const t=G.lvl&&G.lvl.terra; if(!t) return;
+  for(let i=0;i<t.length;i++){
+    const f=t[i]; if(f[0]!=="water") continue;
+    const x0=f[1]-f[2], x1=f[1]+f[2];
+    if(x1<G.cam-30||x0>G.cam+VW+30) continue;
+    const b=groundBase(f[1]); if(b===null) continue;
+    const top=b+WATER_RIM;
+    ctx.beginPath(); ctx.moveTo(x0,top);
+    for(let x=x0;x<=x1;x+=4) ctx.lineTo(x, Math.max(top, b+f[3]*bump(x,f[1],f[2])));
+    ctx.lineTo(x1,top); ctx.closePath();
+    ctx.fillStyle="rgba(94,124,133,.40)"; ctx.fill();
+    // Both surface lines are drawn only where there is actually water under
+    // them; carried across the whole span they would run up onto the banks.
+    const wetAt=x=>b+f[3]*bump(x,f[1],f[2]) > top+0.5;
+    setInk("rgba(52,80,88,.80)",1.9);                      // the surface, moving
+    let open=false; ctx.beginPath();
+    for(let x=x0;x<=x1;x+=4){
+      if(!wetAt(x)){ open=false; continue; }
+      const y=top+Math.sin(x*0.09+G.t*2.2)*1.4;
+      open?ctx.lineTo(x,y):ctx.moveTo(x,y); open=true;
+    }
+    ctx.stroke();
+    setInk("rgba(240,232,212,.60)",1.2);                   // a second, slower glint
+    open=false; ctx.beginPath();
+    for(let x=x0;x<=x1;x+=4){
+      if(b+f[3]*bump(x,f[1],f[2]) < top+7){ open=false; continue; }
+      const y=top+3.6+Math.sin(x*0.13-G.t*1.7)*1.1;
+      open?ctx.lineTo(x,y):ctx.moveTo(x,y); open=true;
+    }
+    ctx.stroke();
+  }
+}
 function drawLasso(){
   const A=P.la; if(A.st===0) return;
   const h=handPos();
   setInk("#8a6a2f",2.1);
   if(A.st===1){                                  // winding: loop spins overhead
-    const cx=P.x+P.w/2+P.face*4, cy=P.y+P.h-40;
+    const a=bodyAnchor();
+    const cx=a.x+P.face*4*a.s, cy=a.y-40*a.s;
     L(h.x,h.y,cx,cy+3);
     ctx.save(); ctx.translate(cx,cy); ctx.rotate(G.t*16);
     ctx.beginPath(); ctx.ellipse(0,0,9.5,3.6,0,0,7); ctx.stroke(); ctx.restore();
@@ -1329,7 +1760,16 @@ function drawLasso(){
        hand-inked cels never land in quite the same place twice
    Any key or any tap skips straight to the title card. */
 const PW=300, PH=200, PGY=150;          // page box, and the ground line on it
-const FLIP={on:false,i:0,t:0,turning:false};
+const FLIP={on:false,i:0,t:0,turning:false,skip:false};
+/* The book is unskippable the first time and skippable after that: a stranger
+   gets the whole story, someone coming back for the game gets to press a key.
+   "Seen it" is only recorded once the last page has actually turned.
+   localStorage can throw outright — private windows, storage switched off — and
+   the safe answer to "have you read this?" is no, so any failure just means the
+   intro plays in full. */
+const SEEN_KEY="wantedbull.game.intro.v1";
+function introSeen(){ try{ return localStorage.getItem(SEEN_KEY)==="1"; }catch(e){ return false; } }
+function markIntroSeen(){ try{ localStorage.setItem(SEEN_KEY,"1"); }catch(e){} }
 const F_HOLD=3.5, F_TURN=0.46;
 
 function fTxt(t,x,y,px,col,fam,al,it){
@@ -1350,6 +1790,7 @@ function fGround(x0,x1,y){
    shot (the herd) and a close one (the ranch) can share the same drawing code. */
 function pgCover(){
   const k=beat();
+  ctx.save(); fWob(k);        // the cover shakes on its registration too
   fTxt("CASE FILE GJ-17",PW/2,30,11.5,"#c4552a",UIF);
   ctx.save(); ctx.translate(PW/2,80+Math.sin(k*0.4)*1.4);
   if(HAT.ready&&HAT.cv){
@@ -1360,6 +1801,7 @@ function pgCover(){
   fTxt("THE BULLRIDER'S",PW/2,144,22,"#241c14",UIF);
   fTxt("LAST RIDE",PW/2,168,22,"#241c14",UIF);
   fTxt("a flip-book life of D!",PW/2,187,13.5,"#6b5843",null,null,true);
+  ctx.restore();
 }
 function pgRanch(){
   const k=beat(); ctx.save(); fWob(k);
@@ -1511,24 +1953,34 @@ function fRender(){
     fDrawPage(i,Math.min(1,FLIP.t/F_HOLD));
   }
   ctx.restore();
-  ctx.setTransform(1,0,0,1,0,0);
-  ctx.fillStyle="rgba(233,221,194,.5)"; ctx.textAlign="center";
-  ctx.font=Math.max(11,Math.round(8*sc))+"px "+UIF;
-  ctx.fillText(isTouch?"TAP TO SKIP":"PRESS ANY KEY TO SKIP", W/2, H-Math.round(9*sc));
+  if(FLIP.skip){
+    ctx.setTransform(1,0,0,1,0,0);
+    ctx.fillStyle="rgba(233,221,194,.5)"; ctx.textAlign="center";
+    ctx.font=Math.max(11,Math.round(8*sc))+"px "+UIF;
+    ctx.fillText(isTouch?"TAP TO SKIP":"PRESS ANY KEY TO SKIP", W/2, H-Math.round(9*sc));
+  }
 }
 function fStep(dt){
   FLIP.t+=dt;
   if(!FLIP.turning){ if(FLIP.t>=F_HOLD){ FLIP.turning=true; FLIP.t=0; } }
   else if(FLIP.t>=F_TURN){
     FLIP.turning=false; FLIP.t=0; FLIP.i++;
-    if(FLIP.i>=PAGES.length) endFlip();
+    if(FLIP.i>=PAGES.length){ markIntroSeen(); endFlip(); }
   }
 }
-function endFlip(){ if(!FLIP.on)return; FLIP.on=false; el("hud").style.display=""; title(); }
-// Capture phase + stopPropagation, so the key that skips the intro cannot also
-// reach the card handler below and start the game in the same press.
-addEventListener("keydown",e=>{ if(FLIP.on){ e.preventDefault(); e.stopPropagation(); endFlip(); } },true);
-addEventListener("pointerdown",e=>{ if(FLIP.on){ e.stopPropagation(); endFlip(); } },true);
+function endFlip(){ if(!FLIP.on)return; FLIP.on=false; el("hud").style.display="";
+  if(isTouch) pad.classList.add("on");
+  title(); }
+// Both sit in the capture phase to swallow input while the book runs, whether or
+// not it can be skipped: Escape must not raise the leave-the-county card over the
+// pages, and a thumb resting on ▶ must not have D! already running the moment the
+// title card clears.
+addEventListener("keydown",e=>{
+  if(FLIP.on){ e.preventDefault(); e.stopPropagation(); if(FLIP.skip) endFlip(); }
+},true);
+addEventListener("pointerdown",e=>{
+  if(FLIP.on){ e.stopPropagation(); if(FLIP.skip) endFlip(); }
+},true);
 
 /* ===================================================================== loop */
 let last=0;
@@ -1558,7 +2010,9 @@ function title(){
 function startFlip(){
   G.lvl=LEVELS[0]; G.mode="card";      // a level must exist before any render()
   FLIP.on=true; FLIP.i=0; FLIP.t=0; FLIP.turning=false;
+  FLIP.skip=introSeen();            // read it once through, then you may skip
   el("hud").style.display="none";   // the book is the whole screen
+  pad.classList.remove("on");
   resize();
 }
 resize(); startFlip(); requestAnimationFrame(frame);
