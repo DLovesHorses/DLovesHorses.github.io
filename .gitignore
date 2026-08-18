@@ -8,3 +8,4 @@ _r2-upload/
 
 # Scratch: files the Cowork device bridge could not delete itself.
 _to_delete/
+"digital/data.local-only/" 
